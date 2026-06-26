@@ -503,6 +503,13 @@
       if(!confirm(`¿Eliminar ${obs.numero}?`))return;
       if(obs.fotoUrl){try{await deleteObject(ref(storage,obs.fotoUrl));}catch(e){}}
       await deleteDoc(doc(db,'observaciones',obsSeleccionada));
+      // Intentar borrar del Sheet (best effort — no bloquea si falla)
+      try {
+        await fetch(APPS_SCRIPT_URL, {
+          method: 'POST',
+          body: JSON.stringify({ accion: 'delete', id: obs.numero })
+        });
+      } catch(e) { console.warn('No se pudo borrar del Sheet:', e); }
       cerrarPanel();
     });
 
