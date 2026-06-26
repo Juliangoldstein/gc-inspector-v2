@@ -511,15 +511,22 @@
     const overlay   = document.getElementById('marcadores-overlay');
 
     function renderizarMarcadores() {
+      const canvas  = document.getElementById('pdf-canvas');
+      const overlay = document.getElementById('marcadores-overlay');
       overlay.innerHTML = '';
-      const canvas = document.getElementById('pdf-canvas');
+      // Sincronizar tamaño del overlay exactamente con el canvas renderizado
+      const rect = canvas.getBoundingClientRect();
+      overlay.style.width  = rect.width  + 'px';
+      overlay.style.height = rect.height + 'px';
+
       Object.values(observaciones)
         .filter(o => o.pagina === currentPagina)
         .forEach(obs => {
           const pin = document.createElement('div');
           pin.className = `pin ${obs.estado === 'Resuelta' ? 'pin-resuelta' : 'pin-pendiente'}`;
-          pin.style.left = (obs.x * canvas.width)  + 'px';
-          pin.style.top  = (obs.y * canvas.height) + 'px';
+          // Usar el tamaño visual del canvas (getBoundingClientRect) no el interno
+          pin.style.left = (obs.x * rect.width)  + 'px';
+          pin.style.top  = (obs.y * rect.height) + 'px';
           pin.textContent = obs.numero || '?';
           pin.title = `${obs.numero} — ${obs.rubro}`;
           pin.addEventListener('click', (e) => {
@@ -535,8 +542,9 @@
       if (!modoEdicion) return;
       const canvas = document.getElementById('pdf-canvas');
       const rect   = canvas.getBoundingClientRect();
-      const x = (e.clientX - rect.left) / canvas.width;
-      const y = (e.clientY - rect.top)  / canvas.height;
+      // Usar dimensiones visuales (rect) para consistencia con renderizarMarcadores
+      const x = (e.clientX - rect.left) / rect.width;
+      const y = (e.clientY - rect.top)  / rect.height;
       desactivarModoEdicion();
       abrirPanelNuevaObs(x, y);
     });
@@ -627,11 +635,16 @@
     function abrirPanel() {
       document.getElementById('panel-obs').classList.remove('oculto');
       document.getElementById('panel-obs').classList.add('abierto');
+      // Re-renderizar marcadores después de que el panel se abra y el canvas se reposicione
+      setTimeout(() => renderizarMarcadores(), 320);
     }
 
     function cerrarPanel() {
       document.getElementById('panel-obs').classList.remove('abierto');
-      setTimeout(() => document.getElementById('panel-obs').classList.add('oculto'), 300);
+      setTimeout(() => {
+        document.getElementById('panel-obs').classList.add('oculto');
+        renderizarMarcadores();
+      }, 300);
       obsSeleccionada = null;
     }
 
