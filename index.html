@@ -7,11 +7,7 @@
   <meta name="theme-color" content="#1a1a2e">
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icon-192.png">
-
-  <!-- PDF.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-
-  <!-- Firebase -->
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
     import { getAuth, signInWithPopup, signOut, GoogleAuthProvider, onAuthStateChanged }
@@ -22,7 +18,6 @@
     import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject }
       from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
 
-    // ─── CONFIG ───────────────────────────────────────────────────────────────
     const firebaseConfig = {
       apiKey: "AIzaSyDYmNpwzqhgp-caudqx4VJtcwd4f4zsQ7w",
       authDomain: "gc-inspector-catamaran12.firebaseapp.com",
@@ -31,1935 +26,648 @@
       messagingSenderId: "697303338319",
       appId: "1:697303338319:web:1a6c4b153c3657cbb0c93a"
     };
-
-    const DROPBOX_APP_KEY     = 'qw79ab7qqu953as';
-    const DROPBOX_APP_SECRET  = '4iz9dk1tff48jxq';
+    const DROPBOX_APP_KEY       = 'qw79ab7qqu953as';
+    const DROPBOX_APP_SECRET    = '4iz9dk1tff48jxq';
     const DROPBOX_REFRESH_TOKEN = 'h9uoKnqZO-UAAAAAAAAAATVIwKRENA91kwiaZ7bkejgAvIfWUATIMYPVZLVmckgX';
-    const DROPBOX_FOLDER      = '/Espacio familiar/COMPLEJO CATAMARAN/Catamaran 12/m_Obra';
-    const APPS_SCRIPT_URL     = 'https://script.google.com/macros/s/AKfycbxBMLwyI4TL8pERW9KyWaVca5lz5EK0fBDGscGyefxUPhZA_4H_tGaQ7lGTShLILnGYIg/exec';
-    const OBRA_NOMBRE         = 'Catamarán 12';
+    const DROPBOX_FOLDER        = '/Espacio familiar/COMPLEJO CATAMARAN/Catamaran 12/m_Obra';
+    const APPS_SCRIPT_URL       = 'https://script.google.com/macros/s/AKfycbxBMLwyI4TL8pERW9KyWaVca5lz5EK0fBDGscGyefxUPhZA_4H_tGaQ7lGTShLILnGYIg/exec';
+    const OBRA_NOMBRE           = 'Catamarán 12';
 
-    const RUBROS = [
-      'Agua','Aire Acondicionado','Carpintería aluminio','Cerámico',
-      'Cloaca y pluvial','Durlock','Electricidad','Estructura','Gas',
-      'Incendio','Mampostería','Marcos y premarcos','Marmoles','Metalúrgica',
-      'Muebles','Pintura','Replanteo','Revoque y Contrapiso',
-      'Terminaciones','Yeso','Zócalos'
-    ];
-
+    const RUBROS = ['Agua','Aire Acondicionado','Carpintería aluminio','Cerámico','Cloaca y pluvial','Durlock','Electricidad','Estructura','Gas','Incendio','Mampostería','Marcos y premarcos','Marmoles','Metalúrgica','Muebles','Pintura','Replanteo','Revoque y Contrapiso','Terminaciones','Yeso','Zócalos'];
     const RESPONSABLES = {
-      'Agua':                ['Plomero','Jefe de obra','Otro'],
-      'Aire Acondicionado':  ['Técnico AC','Jefe de obra','Otro'],
-      'Carpintería aluminio':['Carpintero','Jefe de obra','Otro'],
-      'Cerámico':            ['Ceramista','Jefe de obra','Otro'],
-      'Cloaca y pluvial':    ['Plomero','Jefe de obra','Otro'],
-      'Durlock':             ['Durlocker','Jefe de obra','Otro'],
-      'Electricidad':        ['Electricista','Jefe de obra','Otro'],
-      'Estructura':          ['Estructurista','Jefe de obra','Otro'],
-      'Gas':                 ['Gasista','Jefe de obra','Otro'],
-      'Incendio':            ['Especialista incendio','Jefe de obra','Otro'],
-      'Mampostería':         ['Albañil','Jefe de obra','Otro'],
-      'Marcos y premarcos':  ['Carpintero','Jefe de obra','Otro'],
-      'Marmoles':            ['Marmolero','Jefe de obra','Otro'],
-      'Metalúrgica':         ['Herrero','Jefe de obra','Otro'],
-      'Muebles':             ['Carpintero','Jefe de obra','Otro'],
-      'Pintura':             ['Pintor','Jefe de obra','Otro'],
-      'Replanteo':           ['Jefe de obra','Otro'],
-      'Revoque y Contrapiso':['Revocador','Jefe de obra','Otro'],
-      'Terminaciones':       ['Jefe de obra','Otro'],
-      'Yeso':                ['Yesero','Jefe de obra','Otro'],
-      'Zócalos':             ['Carpintero','Jefe de obra','Otro'],
+      'Agua':['Plomero','Jefe de obra','Otro'],'Aire Acondicionado':['Técnico AC','Jefe de obra','Otro'],
+      'Carpintería aluminio':['Carpintero','Jefe de obra','Otro'],'Cerámico':['Ceramista','Jefe de obra','Otro'],
+      'Cloaca y pluvial':['Plomero','Jefe de obra','Otro'],'Durlock':['Durlocker','Jefe de obra','Otro'],
+      'Electricidad':['Electricista','Jefe de obra','Otro'],'Estructura':['Estructurista','Jefe de obra','Otro'],
+      'Gas':['Gasista','Jefe de obra','Otro'],'Incendio':['Especialista incendio','Jefe de obra','Otro'],
+      'Mampostería':['Albañil','Jefe de obra','Otro'],'Marcos y premarcos':['Carpintero','Jefe de obra','Otro'],
+      'Marmoles':['Marmolero','Jefe de obra','Otro'],'Metalúrgica':['Herrero','Jefe de obra','Otro'],
+      'Muebles':['Carpintero','Jefe de obra','Otro'],'Pintura':['Pintor','Jefe de obra','Otro'],
+      'Replanteo':['Jefe de obra','Otro'],'Revoque y Contrapiso':['Revocador','Jefe de obra','Otro'],
+      'Terminaciones':['Jefe de obra','Otro'],'Yeso':['Yesero','Jefe de obra','Otro'],
+      'Zócalos':['Carpintero','Jefe de obra','Otro'],
     };
 
-    // ─── APP STATE ────────────────────────────────────────────────────────────
-    const app   = initializeApp(firebaseConfig);
-    const auth  = getAuth(app);
-    const db    = getFirestore(app);
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
     const storage = getStorage(app);
     const provider = new GoogleAuthProvider();
 
-    let currentUser     = null;
-    let currentUserData = null;
-    let currentPlano    = null;   // { id, nombre, dropboxPath, paginas }
-    let currentPagina   = 1;
-    let pdfDoc          = null;
-    let pdfScale        = 1;
-    let observaciones   = {};     // obsId → data (tiempo real)
-    let obsUnsubscribe  = null;
-    let dropboxToken    = null;
-    let modoEdicion     = false;  // true = colocando marcador
-    let obsSeleccionada = null;
-    let planosUnsubscribe = null;
-    // zoom/pan manejado por pdfEscala/pdfOffsetX/pdfOffsetY
+    let currentUser = null, currentUserData = null, currentPlano = null;
+    let currentPagina = 1, pdfDoc = null;
+    let observaciones = {}, obsUnsubscribe = null, planosUnsubscribe = null;
+    let dropboxToken = null, modoEdicion = false, obsSeleccionada = null;
 
-    pdfjsLib.GlobalWorkerOptions.workerSrc =
-      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    // ── ZOOM/PAN ──────────────────────────────────────────────────────────────
+    // El zoom funciona re-renderizando el PDF con mayor escala.
+    // pdfBaseScale = escala para ajustar al ancho del área (100%)
+    // pdfZoom      = factor multiplicador del usuario (1 = 100%)
+    // El pan usa scroll nativo del div pdf-area (overflow: auto)
+    let pdfBaseScale = 1;
+    let pdfZoom      = 1;
+
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
     // ─── PANTALLAS ────────────────────────────────────────────────────────────
-    const pantallas = {
-      login:    document.getElementById('pantalla-login'),
-      espera:   document.getElementById('pantalla-espera'),
-      planos:   document.getElementById('pantalla-planos'),
-      inspector:document.getElementById('pantalla-inspector'),
-    };
-
-    function mostrar(nombre) {
-      Object.values(pantallas).forEach(p => p.classList.add('oculto'));
-      pantallas[nombre].classList.remove('oculto');
-    }
+    const pantallas = { login: document.getElementById('pantalla-login'), espera: document.getElementById('pantalla-espera'), planos: document.getElementById('pantalla-planos'), inspector: document.getElementById('pantalla-inspector') };
+    function mostrar(n) { Object.values(pantallas).forEach(p => p.classList.add('oculto')); pantallas[n].classList.remove('oculto'); }
 
     // ─── AUTH ─────────────────────────────────────────────────────────────────
     onAuthStateChanged(auth, async (user) => {
       if (!user) { mostrar('login'); return; }
       currentUser = user;
-
-      // Verificar si está autorizado en Firestore
       const userRef = doc(db, 'usuarios', user.uid);
-      const snap    = await getDoc(userRef);
-
+      const snap = await getDoc(userRef);
       if (!snap.exists()) {
-        // Primera vez — crear registro pendiente de autorización
-        await setDoc(userRef, {
-          email:       user.email,
-          nombre:      user.displayName || user.email,
-          fotoUrl:     user.photoURL || '',
-          rol:         'inspector',
-          autorizado:  false,
-          creadoEn:    serverTimestamp(),
-        });
-        mostrar('espera');
-        return;
+        await setDoc(userRef, { email: user.email, nombre: user.displayName || user.email, fotoUrl: user.photoURL || '', rol: 'inspector', autorizado: false, creadoEn: serverTimestamp() });
+        mostrar('espera'); return;
       }
-
-      const userData = snap.data();
-      currentUserData = userData;
-
-      if (!userData.autorizado) { mostrar('espera'); return; }
-
-      // Actualizar última conexión
+      currentUserData = snap.data();
+      if (!currentUserData.autorizado) { mostrar('espera'); return; }
       await updateDoc(userRef, { ultimaConexion: serverTimestamp() });
-
-      // Mostrar botón de usuarios solo para admins
-      if (userData.rol === 'admin') {
-        document.getElementById('btn-usuarios').style.display = 'block';
-      }
-
-      // Ocultar acciones de escritura para lectores
-      if (userData.rol === 'lector') {
-        document.getElementById('btn-agregar-plano').classList.add('oculto');
-      }
-
+      if (currentUserData.rol === 'admin') document.getElementById('btn-usuarios').style.display = 'block';
+      if (currentUserData.rol === 'lector') document.getElementById('btn-agregar-plano').classList.add('oculto');
       mostrar('planos');
       iniciarPantallaPlanos();
     });
 
-    // Login con Google
     document.getElementById('btn-login').addEventListener('click', async () => {
-      try {
-        await signInWithPopup(auth, provider);
-      } catch (e) {
-        console.error(e);
-        alert('Error al iniciar sesión. Intentá de nuevo.');
-      }
+      try { await signInWithPopup(auth, provider); } catch (e) { console.error(e); alert('Error al iniciar sesión.'); }
     });
-
-    // Logout
-    document.querySelectorAll('.btn-logout').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        if (obsUnsubscribe)   obsUnsubscribe();
-        if (planosUnsubscribe) planosUnsubscribe();
-        await signOut(auth);
-      });
-    });
+    document.querySelectorAll('.btn-logout').forEach(btn => btn.addEventListener('click', async () => {
+      if (obsUnsubscribe) obsUnsubscribe();
+      if (planosUnsubscribe) planosUnsubscribe();
+      await signOut(auth);
+    }));
 
     // ─── DROPBOX ──────────────────────────────────────────────────────────────
     async function getDropboxToken() {
       if (dropboxToken) return dropboxToken;
-      const res = await fetch('https://api.dropbox.com/oauth2/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          grant_type:    'refresh_token',
-          refresh_token: DROPBOX_REFRESH_TOKEN,
-          client_id:     DROPBOX_APP_KEY,
-          client_secret: DROPBOX_APP_SECRET,
-        })
-      });
-      const data = await res.json();
-      dropboxToken = data.access_token;
+      const res = await fetch('https://api.dropbox.com/oauth2/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: DROPBOX_REFRESH_TOKEN, client_id: DROPBOX_APP_KEY, client_secret: DROPBOX_APP_SECRET }) });
+      dropboxToken = (await res.json()).access_token;
       return dropboxToken;
     }
-
     async function listarCarpeta(path) {
       const token = await getDropboxToken();
-      const res = await fetch('https://api.dropboxapi.com/2/files/list_folder', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path, recursive: false })
-      });
-      const data = await res.json();
-      const entries = data.entries || [];
-      // Carpetas primero, luego PDFs, resto ignorado
-      const carpetas = entries.filter(e => e['.tag'] === 'folder').sort((a,b) => a.name.localeCompare(b.name));
-      const pdfs     = entries.filter(e => e['.tag'] === 'file' && e.name.toLowerCase().endsWith('.pdf')).sort((a,b) => a.name.localeCompare(b.name));
-      return { carpetas, pdfs };
+      const res = await fetch('https://api.dropboxapi.com/2/files/list_folder', { method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ path, recursive: false }) });
+      const entries = (await res.json()).entries || [];
+      return { carpetas: entries.filter(e => e['.tag']==='folder').sort((a,b)=>a.name.localeCompare(b.name)), pdfs: entries.filter(e=>e['.tag']==='file'&&e.name.toLowerCase().endsWith('.pdf')).sort((a,b)=>a.name.localeCompare(b.name)) };
     }
-
     async function descargarPDF(path) {
       const token = await getDropboxToken();
-      // Obtener link temporal (evita CORS del endpoint de descarga directa)
-      const res = await fetch('https://api.dropboxapi.com/2/files/get_temporary_link', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ path }),
-      });
+      const res = await fetch('https://api.dropboxapi.com/2/files/get_temporary_link', { method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ path }) });
       const data = await res.json();
-      if (!data.link) throw new Error('No se pudo obtener link temporal de Dropbox');
-      // Descargar desde el link temporal (sin CORS)
-      const pdfRes = await fetch(data.link);
-      return await pdfRes.arrayBuffer();
+      if (!data.link) throw new Error('No se pudo obtener link de Dropbox');
+      return await (await fetch(data.link)).arrayBuffer();
     }
 
     // ─── PANTALLA PLANOS ──────────────────────────────────────────────────────
     async function iniciarPantallaPlanos() {
-      document.getElementById('user-nombre').textContent =
-        currentUserData.nombre || currentUser.email;
+      document.getElementById('user-nombre').textContent = currentUserData.nombre || currentUser.email;
       document.getElementById('user-email').textContent = currentUser.email;
-
-      const avatar = document.getElementById('user-avatar');
-      if (currentUser.photoURL) avatar.src = currentUser.photoURL;
-
+      if (currentUser.photoURL) document.getElementById('user-avatar').src = currentUser.photoURL;
       cargarListaPlanos();
     }
-
     async function cargarListaPlanos() {
       const lista = document.getElementById('lista-planos');
       lista.innerHTML = '<div class="loading">Cargando planos...</div>';
-
       if (planosUnsubscribe) planosUnsubscribe();
-
-      const q = query(collection(db, 'planos'), orderBy('creadoEn', 'desc'));
-      planosUnsubscribe = onSnapshot(q, (snap) => {
-        if (snap.empty) {
-          lista.innerHTML = `
-            <div class="empty-state">
-              <div class="empty-icon">📐</div>
-              <p>No hay planos cargados todavía.</p>
-              <p>Usá el botón <strong>+ Agregar plano</strong> para empezar.</p>
-            </div>`;
-          return;
-        }
+      planosUnsubscribe = onSnapshot(query(collection(db,'planos'), orderBy('creadoEn','desc')), snap => {
+        if (snap.empty) { lista.innerHTML = `<div class="empty-state"><div class="empty-icon">📐</div><p>No hay planos cargados todavía.</p><p>Usá <strong>+ Agregar plano</strong> para empezar.</p></div>`; return; }
         lista.innerHTML = '';
-        snap.forEach(docSnap => {
-          const p = { id: docSnap.id, ...docSnap.data() };
-          lista.appendChild(crearTarjetaPlano(p));
-        });
+        snap.forEach(d => lista.appendChild(crearTarjetaPlano({ id: d.id, ...d.data() })));
       });
     }
-
     function crearTarjetaPlano(plano) {
       const div = document.createElement('div');
       div.className = 'tarjeta-plano';
-      div.innerHTML = `
-        <div class="plano-info">
-          <div class="plano-icono">📄</div>
-          <div class="plano-datos">
-            <div class="plano-nombre">${plano.nombre}</div>
-            <div class="plano-meta">${plano.paginas || 1} página${(plano.paginas||1)>1?'s':''}</div>
-          </div>
-        </div>
-        <div class="plano-acciones">
-          <button class="btn-abrir" data-id="${plano.id}">Abrir →</button>
-          ${currentUserData.rol === 'admin' ?
-            `<button class="btn-eliminar-plano" data-id="${plano.id}" title="Eliminar">🗑</button>` : ''}
-        </div>
-      `;
+      div.innerHTML = `<div class="plano-info"><div class="plano-icono">📄</div><div class="plano-datos"><div class="plano-nombre">${plano.nombre}</div><div class="plano-meta">${plano.paginas||1} página${(plano.paginas||1)>1?'s':''}</div></div></div><div class="plano-acciones"><button class="btn-abrir">Abrir →</button>${currentUserData.rol==='admin'?`<button class="btn-eliminar-plano">🗑</button>`:''}</div>`;
       div.querySelector('.btn-abrir').addEventListener('click', () => abrirPlano(plano));
-      const btnElim = div.querySelector('.btn-eliminar-plano');
-      if (btnElim) btnElim.addEventListener('click', (e) => {
-        e.stopPropagation();
-        eliminarPlano(plano);
-      });
+      const be = div.querySelector('.btn-eliminar-plano');
+      if (be) be.addEventListener('click', e => { e.stopPropagation(); eliminarPlano(plano); });
       return div;
     }
-
     async function eliminarPlano(plano) {
-      if (!confirm(`¿Eliminar el plano "${plano.nombre}"? Se borrarán todas sus observaciones.`)) return;
-      // Borrar observaciones del plano
-      const q = query(collection(db, 'observaciones'), where('planoId', '==', plano.id));
-      const snap = await getDocs(q);
-      const borrados = snap.docs.map(d => deleteDoc(doc(db, 'observaciones', d.id)));
-      await Promise.all(borrados);
-      await deleteDoc(doc(db, 'planos', plano.id));
+      if (!confirm(`¿Eliminar "${plano.nombre}"? Se borrarán todas sus observaciones.`)) return;
+      const snap = await getDocs(query(collection(db,'observaciones'), where('planoId','==',plano.id)));
+      await Promise.all(snap.docs.map(d => deleteDoc(doc(db,'observaciones',d.id))));
+      await deleteDoc(doc(db,'planos',plano.id));
     }
 
-    // Agregar plano
-    let dropboxNavPath = DROPBOX_FOLDER;
-    let dropboxNavStack = []; // historial de paths para volver atrás
-
-    document.getElementById('btn-agregar-plano').addEventListener('click', () => {
-      dropboxNavPath  = DROPBOX_FOLDER;
-      dropboxNavStack = [];
-      mostrarModalAgregarPlano();
-    });
-
-    async function mostrarModalAgregarPlano() {
+    // ─── NAVEGADOR DROPBOX ────────────────────────────────────────────────────
+    let dropboxNavPath = DROPBOX_FOLDER, dropboxNavStack = [];
+    document.getElementById('btn-agregar-plano').addEventListener('click', () => { dropboxNavPath = DROPBOX_FOLDER; dropboxNavStack = []; mostrarModalDropbox(); });
+    async function mostrarModalDropbox() {
       const modal = document.getElementById('modal-agregar-plano');
-      const lista  = document.getElementById('lista-dropbox');
+      const lista = document.getElementById('lista-dropbox');
       modal.classList.remove('oculto');
       lista.innerHTML = '<div class="loading">Cargando...</div>';
-      actualizarBreadcrumb();
-
+      const bc = document.getElementById('dropbox-breadcrumb');
+      const rel = dropboxNavPath.replace(DROPBOX_FOLDER,'') || '/';
+      bc.textContent = rel.split('/').filter(Boolean).length ? '/ '+rel.split('/').filter(Boolean).join(' / ') : 'm_Obra';
       try {
         const { carpetas, pdfs } = await listarCarpeta(dropboxNavPath);
-
         lista.innerHTML = '';
-
-        // Botón volver
         if (dropboxNavStack.length > 0) {
-          const btnVolver = document.createElement('div');
-          btnVolver.className = 'item-dropbox item-volver';
-          btnVolver.innerHTML = `<span>← Volver</span>`;
-          btnVolver.addEventListener('click', () => {
-            dropboxNavPath = dropboxNavStack.pop();
-            mostrarModalAgregarPlano();
-          });
-          lista.appendChild(btnVolver);
+          const v = document.createElement('div'); v.className='item-dropbox item-volver'; v.innerHTML='<span>← Volver</span>';
+          v.addEventListener('click', () => { dropboxNavPath = dropboxNavStack.pop(); mostrarModalDropbox(); }); lista.appendChild(v);
         }
-
-        // Carpetas
-        carpetas.forEach(carpeta => {
-          const div = document.createElement('div');
-          div.className = 'item-dropbox item-carpeta';
-          div.innerHTML = `<span>📁 ${carpeta.name}</span><span class="item-arrow">›</span>`;
-          div.addEventListener('click', () => {
-            dropboxNavStack.push(dropboxNavPath);
-            dropboxNavPath = carpeta.path_lower;
-            mostrarModalAgregarPlano();
-          });
-          lista.appendChild(div);
-        });
-
-        // PDFs
-        pdfs.forEach(archivo => {
-          const div = document.createElement('div');
-          div.className = 'item-dropbox';
-          div.innerHTML = `<span>📄 ${archivo.name}</span><button class="btn-seleccionar">Seleccionar</button>`;
-          div.querySelector('.btn-seleccionar').addEventListener('click', () => {
-            seleccionarArchivoDropbox(archivo);
-            modal.classList.add('oculto');
-          });
-          lista.appendChild(div);
-        });
-
-        if (carpetas.length === 0 && pdfs.length === 0) {
-          lista.innerHTML += '<p style="color:var(--text2);padding:12px 0">Carpeta vacía</p>';
-        }
-
-      } catch (e) {
-        lista.innerHTML = '<p style="color:var(--danger)">Error al conectar con Dropbox.</p>';
-        console.error(e);
-      }
+        carpetas.forEach(c => { const d=document.createElement('div'); d.className='item-dropbox item-carpeta'; d.innerHTML=`<span>📁 ${c.name}</span><span class="item-arrow">›</span>`; d.addEventListener('click',()=>{dropboxNavStack.push(dropboxNavPath);dropboxNavPath=c.path_lower;mostrarModalDropbox();}); lista.appendChild(d); });
+        pdfs.forEach(f => { const d=document.createElement('div'); d.className='item-dropbox'; d.innerHTML=`<span>📄 ${f.name}</span><button class="btn-seleccionar">Seleccionar</button>`; d.querySelector('.btn-seleccionar').addEventListener('click',()=>{seleccionarDropbox(f);modal.classList.add('oculto');}); lista.appendChild(d); });
+        if (!carpetas.length && !pdfs.length) lista.innerHTML += '<p style="color:var(--text2);padding:12px 0">Carpeta vacía</p>';
+      } catch(e) { lista.innerHTML='<p style="color:var(--danger)">Error al conectar con Dropbox.</p>'; console.error(e); }
     }
-
-    function actualizarBreadcrumb() {
-      const bc = document.getElementById('dropbox-breadcrumb');
-      if (!bc) return;
-      const relativo = dropboxNavPath.replace(DROPBOX_FOLDER, '') || '/';
-      const partes   = relativo.split('/').filter(Boolean);
-      bc.textContent = partes.length ? '/ ' + partes.join(' / ') : 'm_Obra';
-    }
-
-    document.getElementById('btn-cerrar-modal-plano').addEventListener('click', () => {
-      document.getElementById('modal-agregar-plano').classList.add('oculto');
-    });
-
-    async function seleccionarArchivoDropbox(archivo) {
-      // Crear el plano en Firestore
-      const nombre = archivo.name.replace('.pdf', '').replace(/_/g, ' ');
-      const docRef = await addDoc(collection(db, 'planos'), {
-        nombre,
-        dropboxPath: archivo.path_lower,
-        paginas:     1,  // se actualiza al abrir
-        creadoPor:   currentUser.uid,
-        creadoEn:    serverTimestamp(),
-      });
-      const plano = { id: docRef.id, nombre, dropboxPath: archivo.path_lower, paginas: 1 };
-      abrirPlano(plano);
+    document.getElementById('btn-cerrar-modal-plano').addEventListener('click', () => document.getElementById('modal-agregar-plano').classList.add('oculto'));
+    async function seleccionarDropbox(archivo) {
+      const nombre = archivo.name.replace('.pdf','').replace(/_/g,' ');
+      const docRef = await addDoc(collection(db,'planos'), { nombre, dropboxPath: archivo.path_lower, paginas: 1, creadoPor: currentUser.uid, creadoEn: serverTimestamp() });
+      abrirPlano({ id: docRef.id, nombre, dropboxPath: archivo.path_lower, paginas: 1 });
     }
 
     // ─── INSPECTOR ────────────────────────────────────────────────────────────
     async function abrirPlano(plano) {
-      currentPlano  = plano;
-      currentPagina = 1;
-      observaciones = {};
-      pdfEscala  = 1.0;
-      pdfOffsetX = 0;
-      pdfOffsetY = 0;
-
-      // Mostrar inspector ANTES de cargar el PDF para que pdf-area tenga dimensiones
+      currentPlano = plano; currentPagina = 1; observaciones = {};
+      pdfZoom = 1; pdfBaseScale = 1;
       mostrar('inspector');
-
       document.getElementById('inspector-titulo').textContent = plano.nombre;
       document.getElementById('inspector-obra').textContent   = OBRA_NOMBRE;
       document.getElementById('btn-pagina-actual').textContent = `Página ${currentPagina}`;
-
-      // Mostrar/ocultar acciones según rol
       const esLector = currentUserData?.rol === 'lector';
       document.getElementById('btn-nueva-obs').classList.toggle('oculto', esLector);
       document.getElementById('btn-sincronizar').classList.toggle('oculto', esLector);
-
-      // Suscribirse a observaciones en tiempo real
       if (obsUnsubscribe) obsUnsubscribe();
-      const q = query(
-        collection(db, 'observaciones'),
-        where('planoId', '==', plano.id),
-        orderBy('creadoEn', 'asc')
-      );
-      obsUnsubscribe = onSnapshot(q, (snap) => {
-        snap.docChanges().forEach(change => {
-          if (change.type === 'removed') {
-            delete observaciones[change.doc.id];
-          } else {
-            observaciones[change.doc.id] = { id: change.doc.id, ...change.doc.data() };
-          }
-        });
-        renderizarMarcadores();
-        actualizarContadorObs();
+      obsUnsubscribe = onSnapshot(query(collection(db,'observaciones'), where('planoId','==',plano.id), orderBy('creadoEn','asc')), snap => {
+        snap.docChanges().forEach(ch => { if (ch.type==='removed') delete observaciones[ch.doc.id]; else observaciones[ch.doc.id]={id:ch.doc.id,...ch.doc.data()}; });
+        renderizarMarcadores(); actualizarContadorObs();
       });
-
-      // Pequeño delay para asegurar que el DOM esté visible antes de medir clientWidth
-      await new Promise(r => setTimeout(r, 50));
-
-      // Cargar PDF
       await cargarPDF(plano.dropboxPath);
     }
 
     async function cargarPDF(path) {
-      const canvas  = document.getElementById('pdf-canvas');
-      const ctx     = canvas.getContext('2d');
       const spinner = document.getElementById('pdf-spinner');
       spinner.classList.remove('oculto');
-
       try {
-        const buffer = await descargarPDF(path);
-        pdfDoc = await pdfjsLib.getDocument({ data: buffer }).promise;
-
-        // Actualizar cantidad de páginas en Firestore
+        pdfDoc = await pdfjsLib.getDocument({ data: await descargarPDF(path) }).promise;
         if (pdfDoc.numPages !== currentPlano.paginas) {
-          await updateDoc(doc(db, 'planos', currentPlano.id), { paginas: pdfDoc.numPages });
+          await updateDoc(doc(db,'planos',currentPlano.id), { paginas: pdfDoc.numPages });
           currentPlano.paginas = pdfDoc.numPages;
         }
-
         actualizarNavegacionPaginas();
-        await renderizarPagina(currentPagina);
-      } catch (e) {
-        console.error(e);
-        alert('Error al cargar el PDF.');
-      } finally {
-        spinner.classList.add('oculto');
-      }
+        await renderizarPagina(currentPagina, true);
+      } catch(e) { console.error(e); alert('Error al cargar el PDF.'); }
+      finally { spinner.classList.add('oculto'); }
     }
 
-    // ─── SISTEMA DE ZOOM/PAN (mismo que v1) ──────────────────────────────────
-    // El canvas siempre se renderiza a escala base (ajusta al ancho).
-    // El zoom se aplica via CSS transform sobre el wrapper, no re-renderizando.
-    let pdfEscala    = 1.0;   // zoom actual (1 = ajustar al ancho)
-    let pdfOffsetX   = 0;
-    let pdfOffsetY   = 0;
-    let pdfPageWidth = 0;     // ancho del PDF en px a escala 1
+    // renderizarPagina: renderiza el PDF al pdfBaseScale * pdfZoom actual.
+    // Si resetZoom=true, recalcula pdfBaseScale y resetea pdfZoom=1.
+    async function renderizarPagina(num, resetZoom = false) {
+      const page   = await pdfDoc.getPage(num);
+      const canvas = document.getElementById('pdf-canvas');
+      const area   = document.getElementById('pdf-area');
+      const ctx    = canvas.getContext('2d');
 
-    async function renderizarPagina(num) {
-      const page    = await pdfDoc.getPage(num);
-      const canvas  = document.getElementById('pdf-canvas');
-      const area    = document.getElementById('pdf-area');
-      const ctx     = canvas.getContext('2d');
+      if (resetZoom) {
+        const vp0 = page.getViewport({ scale: 1 });
+        pdfBaseScale = area.clientWidth / vp0.width;
+        pdfZoom = 1;
+      }
 
-      const viewport = page.getViewport({ scale: 1 });
-      pdfPageWidth   = viewport.width;
-
-      // Siempre renderizar a escala que ajusta al ancho del área
-      const baseScale = area.clientWidth / viewport.width;
-      const vp        = page.getViewport({ scale: baseScale });
-
+      const escala = pdfBaseScale * pdfZoom;
+      const vp     = page.getViewport({ scale: escala });
       canvas.width  = vp.width;
       canvas.height = vp.height;
-
       await page.render({ canvasContext: ctx, viewport: vp }).promise;
-
-      // Resetear zoom al cambiar de página
-      pdfEscala  = 1.0;
-      pdfOffsetX = 0;
-      pdfOffsetY = 0;
-      aplicarTransformCanvas();
       renderizarMarcadores();
-
-      document.getElementById('btn-pagina-actual').textContent =
-        `Página ${currentPagina} / ${pdfDoc.numPages}`;
-      document.getElementById('btn-zoom-nivel').textContent = '100%';
-    }
-
-    function aplicarTransformCanvas() {
-      const canvas  = document.getElementById('pdf-canvas');
-      const overlay = document.getElementById('marcadores-overlay');
-      const t = `translate(${pdfOffsetX}px, ${pdfOffsetY}px) scale(${pdfEscala})`;
-      canvas.style.transform        = t;
-      canvas.style.transformOrigin  = '0 0';
-      overlay.style.transform       = t;
-      overlay.style.transformOrigin = '0 0';
-      document.getElementById('btn-zoom-nivel').textContent =
-        Math.round(pdfEscala * 100) + '%';
+      document.getElementById('btn-pagina-actual').textContent = `Página ${currentPagina} / ${pdfDoc.numPages}`;
+      document.getElementById('btn-zoom-nivel').textContent    = Math.round(pdfZoom * 100) + '%';
     }
 
     function actualizarNavegacionPaginas() {
-      const btnPrev = document.getElementById('btn-pag-anterior');
-      const btnNext = document.getElementById('btn-pag-siguiente');
-      btnPrev.disabled = currentPagina <= 1;
-      btnNext.disabled = currentPagina >= (pdfDoc?.numPages || 1);
+      document.getElementById('btn-pag-anterior').disabled = currentPagina <= 1;
+      document.getElementById('btn-pag-siguiente').disabled = currentPagina >= (pdfDoc?.numPages||1);
+    }
+    document.getElementById('btn-pag-anterior').addEventListener('click', async () => { if(currentPagina>1){currentPagina--;await renderizarPagina(currentPagina,true);actualizarNavegacionPaginas();} });
+    document.getElementById('btn-pag-siguiente').addEventListener('click', async () => { if(pdfDoc&&currentPagina<pdfDoc.numPages){currentPagina++;await renderizarPagina(currentPagina,true);actualizarNavegacionPaginas();} });
+
+    // ─── ZOOM ─────────────────────────────────────────────────────────────────
+    // El zoom re-renderiza el canvas. El scroll del area se mantiene proporcionalmente.
+    async function hacerZoom(factor, focalX, focalY) {
+      if (!pdfDoc) return;
+      const area    = document.getElementById('pdf-area');
+      const canvas  = document.getElementById('pdf-canvas');
+      // Punto focal en coordenadas del canvas (antes del zoom)
+      const absX    = area.scrollLeft + focalX;
+      const absY    = area.scrollTop  + focalY;
+      const ratioX  = absX / canvas.width;
+      const ratioY  = absY / canvas.height;
+
+      pdfZoom = Math.min(5, Math.max(0.25, pdfZoom * factor));
+      await renderizarPagina(currentPagina);
+
+      // Restaurar scroll para que el punto focal quede en el mismo lugar
+      area.scrollLeft = ratioX * canvas.width  - focalX;
+      area.scrollTop  = ratioY * canvas.height - focalY;
     }
 
-    document.getElementById('btn-pag-anterior').addEventListener('click', async () => {
-      if (currentPagina > 1) {
-        currentPagina--;
-        await renderizarPagina(currentPagina);
-        actualizarNavegacionPaginas();
-      }
+    document.getElementById('btn-zoom-in').addEventListener('click', async () => {
+      const area = document.getElementById('pdf-area');
+      await hacerZoom(1.25, area.clientWidth/2, area.clientHeight/2);
     });
-
-    document.getElementById('btn-pag-siguiente').addEventListener('click', async () => {
-      if (pdfDoc && currentPagina < pdfDoc.numPages) {
-        currentPagina++;
-        await renderizarPagina(currentPagina);
-        actualizarNavegacionPaginas();
-      }
+    document.getElementById('btn-zoom-out').addEventListener('click', async () => {
+      const area = document.getElementById('pdf-area');
+      await hacerZoom(0.8, area.clientWidth/2, area.clientHeight/2);
     });
-
-    // Botones de zoom
-    document.getElementById('btn-zoom-in').addEventListener('click', () => {
+    document.getElementById('btn-zoom-nivel').addEventListener('click', async () => {
       if (!pdfDoc) return;
-      const canvas = document.getElementById('pdf-canvas');
-      const cx = canvas.width / 2;
-      const cy = canvas.height / 2;
-      const canvasCx = (cx - pdfOffsetX) / pdfEscala;
-      const canvasCy = (cy - pdfOffsetY) / pdfEscala;
-      pdfEscala  = Math.min(5, pdfEscala * 1.25);
-      pdfOffsetX = cx - canvasCx * pdfEscala;
-      pdfOffsetY = cy - canvasCy * pdfEscala;
-      aplicarTransformCanvas();
-      renderizarMarcadores();
+      await renderizarPagina(currentPagina, true);
     });
 
-    document.getElementById('btn-zoom-out').addEventListener('click', () => {
+    // Zoom con scroll del mouse (sin ctrlKey — scroll normal hace scroll, no zoom)
+    document.getElementById('pdf-area').addEventListener('wheel', async (e) => {
       if (!pdfDoc) return;
-      const canvas = document.getElementById('pdf-canvas');
-      const cx = canvas.width / 2;
-      const cy = canvas.height / 2;
-      const canvasCx = (cx - pdfOffsetX) / pdfEscala;
-      const canvasCy = (cy - pdfOffsetY) / pdfEscala;
-      pdfEscala  = Math.max(0.3, pdfEscala / 1.25);
-      pdfOffsetX = cx - canvasCx * pdfEscala;
-      pdfOffsetY = cy - canvasCy * pdfEscala;
-      aplicarTransformCanvas();
-      renderizarMarcadores();
-    });
+      // Solo hacer zoom si se presiona Ctrl/Cmd, de lo contrario scroll normal
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      const area  = document.getElementById('pdf-area');
+      const rect  = area.getBoundingClientRect();
+      await hacerZoom(e.deltaY < 0 ? 1.1 : 0.9, e.clientX - rect.left, e.clientY - rect.top);
+    }, { passive: false });
 
-    document.getElementById('btn-zoom-nivel').addEventListener('click', () => {
-      if (!pdfDoc) return;
-      pdfEscala  = 1.0;
-      pdfOffsetX = 0;
-      pdfOffsetY = 0;
-      aplicarTransformCanvas();
-      renderizarMarcadores();
-    });
-
-    // ─── ZOOM Y PAN (sistema v1) ──────────────────────────────────────────────
+    // ─── PAN CON DRAG ─────────────────────────────────────────────────────────
     const pdfArea = document.getElementById('pdf-area');
-    let isPanning = false;
-    let panStart  = { x: 0, y: 0 };
-    let didPan    = false;
+    let isPanning = false, panStart = {x:0,y:0}, panScroll = {x:0,y:0}, didPan = false;
 
     pdfArea.addEventListener('mousedown', (e) => {
-      if (modoEdicion) return;
-      if (e.button !== 0) return;
-      isPanning = true;
-      didPan    = false;
-      panStart  = { x: e.clientX - pdfOffsetX, y: e.clientY - pdfOffsetY };
+      if (modoEdicion || e.button !== 0) return;
+      isPanning = true; didPan = false;
+      panStart  = { x: e.clientX, y: e.clientY };
+      panScroll = { x: pdfArea.scrollLeft, y: pdfArea.scrollTop };
       pdfArea.classList.add('panning');
-      e.preventDefault();
     });
-
     window.addEventListener('mousemove', (e) => {
       if (!isPanning) return;
-      const nx = e.clientX - panStart.x;
-      const ny = e.clientY - panStart.y;
-      if (Math.abs(nx - pdfOffsetX) > 2 || Math.abs(ny - pdfOffsetY) > 2) didPan = true;
-      pdfOffsetX = nx;
-      pdfOffsetY = ny;
-      aplicarTransformCanvas();
+      const dx = e.clientX - panStart.x, dy = e.clientY - panStart.y;
+      if (Math.abs(dx)>3||Math.abs(dy)>3) didPan = true;
+      pdfArea.scrollLeft = panScroll.x - dx;
+      pdfArea.scrollTop  = panScroll.y - dy;
     });
+    window.addEventListener('mouseup', () => { isPanning = false; pdfArea.classList.remove('panning'); });
 
-    window.addEventListener('mouseup', () => {
-      isPanning = false;
-      pdfArea.classList.remove('panning');
-    });
-
-    // Click en canvas: solo si no fue drag
+    // Click para nueva obs — ignorar si fue un drag
     document.getElementById('pdf-wrapper').addEventListener('click', (e) => {
       if (didPan) { didPan = false; return; }
       if (!modoEdicion) return;
       const canvas = document.getElementById('pdf-canvas');
       const rect   = canvas.getBoundingClientRect();
-      const x = (e.clientX - rect.left) / rect.width;
-      const y = (e.clientY - rect.top)  / rect.height;
+      abrirPanelNuevaObs((e.clientX-rect.left)/rect.width, (e.clientY-rect.top)/rect.height);
       desactivarModoEdicion();
-      abrirPanelNuevaObs(x, y);
-    }, true);
-
-    // Zoom con scroll del mouse, centrado en el cursor
-    pdfArea.addEventListener('wheel', (e) => {
-      e.preventDefault();
-      if (!pdfDoc) return;
-      const canvas  = document.getElementById('pdf-canvas');
-      const rect    = pdfArea.getBoundingClientRect();
-      const cx      = e.clientX - rect.left;
-      const cy      = e.clientY - rect.top;
-      // Punto del canvas bajo el cursor (antes del zoom)
-      const canvasCx = (cx - pdfOffsetX) / pdfEscala;
-      const canvasCy = (cy - pdfOffsetY) / pdfEscala;
-      const factor   = e.deltaY < 0 ? 1.1 : 0.9;
-      pdfEscala      = Math.max(0.3, Math.min(5, pdfEscala * factor));
-      // Mantener el punto bajo el cursor fijo
-      pdfOffsetX = cx - canvasCx * pdfEscala;
-      pdfOffsetY = cy - canvasCy * pdfEscala;
-      aplicarTransformCanvas();
-      renderizarMarcadores();
-    }, { passive: false });
+    });
 
     // Pinch zoom mobile
     let pinchDist = null;
-    pdfArea.addEventListener('touchstart', (e) => {
-      if (e.touches.length === 2) {
-        pinchDist = Math.hypot(
-          e.touches[0].clientX - e.touches[1].clientX,
-          e.touches[0].clientY - e.touches[1].clientY
-        );
-      }
-    }, { passive: true });
+    pdfArea.addEventListener('touchstart', e => { if(e.touches.length===2) pinchDist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY); },{passive:true});
+    pdfArea.addEventListener('touchmove', async e => {
+      if(e.touches.length===2&&pinchDist){e.preventDefault();const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);const rect=pdfArea.getBoundingClientRect();await hacerZoom(d/pinchDist,((e.touches[0].clientX+e.touches[1].clientX)/2)-rect.left,((e.touches[0].clientY+e.touches[1].clientY)/2)-rect.top);pinchDist=d;}
+    },{passive:false});
+    pdfArea.addEventListener('touchend', ()=>{ pinchDist=null; });
 
-    pdfArea.addEventListener('touchmove', (e) => {
-      if (e.touches.length === 2 && pinchDist) {
-        e.preventDefault();
-        const d      = Math.hypot(
-          e.touches[0].clientX - e.touches[1].clientX,
-          e.touches[0].clientY - e.touches[1].clientY
-        );
-        const factor = d / pinchDist;
-        const rect   = pdfArea.getBoundingClientRect();
-        const cx     = ((e.touches[0].clientX + e.touches[1].clientX) / 2) - rect.left;
-        const cy     = ((e.touches[0].clientY + e.touches[1].clientY) / 2) - rect.top;
-        const canvasCx = (cx - pdfOffsetX) / pdfEscala;
-        const canvasCy = (cy - pdfOffsetY) / pdfEscala;
-        pdfEscala    = Math.max(0.3, Math.min(5, pdfEscala * factor));
-        pdfOffsetX   = cx - canvasCx * pdfEscala;
-        pdfOffsetY   = cy - canvasCy * pdfEscala;
-        pinchDist    = d;
-        aplicarTransformCanvas();
-        renderizarMarcadores();
-      }
-    }, { passive: false });
-
-    pdfArea.addEventListener('touchend', () => { pinchDist = null; });
-
-    // Volver a planos
     document.getElementById('btn-volver').addEventListener('click', () => {
-      if (obsUnsubscribe) { obsUnsubscribe(); obsUnsubscribe = null; }
-      pdfDoc = null;
-      observaciones = {};
-      mostrar('planos');
+      if (obsUnsubscribe) { obsUnsubscribe(); obsUnsubscribe=null; }
+      pdfDoc=null; observaciones={}; mostrar('planos');
     });
 
     // ─── MARCADORES ───────────────────────────────────────────────────────────
-    const canvas    = document.getElementById('pdf-canvas');
-    const overlay   = document.getElementById('marcadores-overlay');
-
     function renderizarMarcadores() {
       const canvas  = document.getElementById('pdf-canvas');
       const overlay = document.getElementById('marcadores-overlay');
       overlay.innerHTML = '';
-      // Overlay mismo tamaño que el canvas (el transform se aplica junto con el canvas)
       overlay.style.width  = canvas.width  + 'px';
       overlay.style.height = canvas.height + 'px';
-
-      Object.values(observaciones)
-        .filter(o => o.pagina === currentPagina)
-        .forEach(obs => {
-          const pin = document.createElement('div');
-          pin.className = `pin ${obs.estado === 'Resuelta' ? 'pin-resuelta' : 'pin-pendiente'}`;
-          // Coordenadas relativas (0-1) × tamaño real del canvas
-          pin.style.left = (obs.x * canvas.width)  + 'px';
-          pin.style.top  = (obs.y * canvas.height) + 'px';
-          pin.textContent = obs.numero || '?';
-          pin.title = `${obs.numero} — ${obs.rubro}`;
-          pin.addEventListener('click', (e) => {
-            e.stopPropagation();
-            abrirPanelObs(obs.id);
-          });
-          overlay.appendChild(pin);
-        });
+      Object.values(observaciones).filter(o=>o.pagina===currentPagina).forEach(obs => {
+        const pin = document.createElement('div');
+        pin.className  = `pin ${obs.estado==='Resuelta'?'pin-resuelta':'pin-pendiente'}`;
+        pin.style.left = (obs.x*canvas.width)+'px';
+        pin.style.top  = (obs.y*canvas.height)+'px';
+        pin.textContent = obs.numero||'?';
+        pin.title = `${obs.numero} — ${obs.rubro}`;
+        pin.addEventListener('click', e=>{e.stopPropagation();abrirPanelObs(obs.id);});
+        overlay.appendChild(pin);
+      });
     }
 
-    // (click en pdf-wrapper manejado en la sección de pan, arriba)
-
+    // ─── MODO EDICION ─────────────────────────────────────────────────────────
     function activarModoEdicion() {
-      modoEdicion = true;
-      document.getElementById('pdf-wrapper').classList.add('modo-edicion');
-      document.getElementById('pdf-area').classList.add('modo-edicion-activo');
-      document.getElementById('btn-nueva-obs').textContent = '✕ Cancelar';
+      modoEdicion=true;
+      pdfArea.style.cursor='crosshair';
+      document.getElementById('btn-nueva-obs').textContent='✕ Cancelar';
       document.getElementById('btn-nueva-obs').classList.add('activo');
     }
-
     function desactivarModoEdicion() {
-      modoEdicion = false;
-      document.getElementById('pdf-wrapper').classList.remove('modo-edicion');
-      document.getElementById('pdf-area').classList.remove('modo-edicion-activo');
-      document.getElementById('btn-nueva-obs').textContent = '+ Nueva obs.';
+      modoEdicion=false;
+      pdfArea.style.cursor='';
+      document.getElementById('btn-nueva-obs').textContent='+ Nueva obs.';
       document.getElementById('btn-nueva-obs').classList.remove('activo');
     }
-
-    document.getElementById('btn-nueva-obs').addEventListener('click', () => {
-      if (modoEdicion) { desactivarModoEdicion(); return; }
-      activarModoEdicion();
-    });
+    document.getElementById('btn-nueva-obs').addEventListener('click', () => { if(modoEdicion){desactivarModoEdicion();}else{activarModoEdicion();} });
 
     function actualizarContadorObs() {
-      const total    = Object.values(observaciones).length;
-      const pendientes = Object.values(observaciones).filter(o => o.estado === 'Pendiente').length;
-      document.getElementById('contador-obs').textContent =
-        `${total} obs. · ${pendientes} pendiente${pendientes !== 1 ? 's' : ''}`;
+      const total=Object.values(observaciones).length;
+      const pend=Object.values(observaciones).filter(o=>o.estado==='Pendiente').length;
+      document.getElementById('contador-obs').textContent=`${total} obs. · ${pend} pendiente${pend!==1?'s':''}`;
     }
 
-    // ─── PANEL OBSERVACION ────────────────────────────────────────────────────
+    // ─── PANEL OBS ────────────────────────────────────────────────────────────
     function abrirPanelNuevaObs(x, y) {
-      obsSeleccionada = null;
-      limpiarFormulario();
-      document.getElementById('panel-titulo').textContent = 'Nueva observación';
-      document.getElementById('obs-x').value = x;
-      document.getElementById('obs-y').value = y;
+      obsSeleccionada=null; limpiarFormulario();
+      document.getElementById('panel-titulo').textContent='Nueva observación';
+      document.getElementById('obs-x').value=x; document.getElementById('obs-y').value=y;
       document.getElementById('obs-estado-grupo').classList.add('oculto');
       document.getElementById('btn-eliminar-obs').classList.add('oculto');
-      document.getElementById('btn-guardar-obs').textContent = 'Guardar';
+      document.getElementById('btn-guardar-obs').textContent='Guardar';
       abrirPanel();
     }
-
     function abrirPanelObs(obsId) {
-      const obs = observaciones[obsId];
-      if (!obs) return;
-      obsSeleccionada = obsId;
-
-      const esLector = currentUserData?.rol === 'lector';
-
-      document.getElementById('panel-titulo').textContent = obs.numero || 'Observación';
-      document.getElementById('obs-x').value = obs.x;
-      document.getElementById('obs-y').value = obs.y;
-      document.getElementById('obs-rubro').value       = obs.rubro || '';
+      const obs=observaciones[obsId]; if(!obs)return;
+      obsSeleccionada=obsId;
+      const esLector=currentUserData?.rol==='lector';
+      document.getElementById('panel-titulo').textContent=obs.numero||'Observación';
+      document.getElementById('obs-x').value=obs.x; document.getElementById('obs-y').value=obs.y;
+      document.getElementById('obs-rubro').value=obs.rubro||'';
       actualizarResponsables(obs.rubro);
-      document.getElementById('obs-responsable').value = obs.responsable || '';
-      document.getElementById('obs-descripcion').value = obs.descripcion || '';
-      document.getElementById('obs-severidad').value   = obs.severidad || 'Media';
-      document.getElementById('obs-estado').value      = obs.estado || 'Pendiente';
-      document.getElementById('obs-nota').value        = obs.notaResolucion || '';
-      document.getElementById('obs-foto-preview').src  = obs.fotoUrl || '';
-      document.getElementById('obs-foto-preview').classList.toggle('oculto', !obs.fotoUrl);
-
+      document.getElementById('obs-responsable').value=obs.responsable||'';
+      document.getElementById('obs-descripcion').value=obs.descripcion||'';
+      document.getElementById('obs-severidad').value=obs.severidad||'Media';
+      document.getElementById('obs-estado').value=obs.estado||'Pendiente';
+      document.getElementById('obs-nota').value=obs.notaResolucion||'';
+      document.getElementById('obs-foto-preview').src=obs.fotoUrl||'';
+      document.getElementById('obs-foto-preview').classList.toggle('oculto',!obs.fotoUrl);
       document.getElementById('obs-estado-grupo').classList.remove('oculto');
-      document.getElementById('obs-nota-grupo').classList.toggle('oculto', obs.estado !== 'Resuelta');
-
-      // Lector: ocultar acciones de escritura, poner campos readonly
+      document.getElementById('obs-nota-grupo').classList.toggle('oculto',obs.estado!=='Resuelta');
       if (esLector) {
         document.getElementById('btn-eliminar-obs').classList.add('oculto');
         document.getElementById('btn-guardar-obs').classList.add('oculto');
         document.getElementById('panel-obs').classList.add('modo-lectura');
-        ['obs-rubro','obs-responsable','obs-descripcion','obs-severidad','obs-estado','obs-nota']
-          .forEach(id => { document.getElementById(id).disabled = true; });
-        document.getElementById('obs-foto').disabled = true;
+        ['obs-rubro','obs-responsable','obs-descripcion','obs-severidad','obs-estado','obs-nota'].forEach(id=>{document.getElementById(id).disabled=true;});
+        document.getElementById('obs-foto').disabled=true;
       } else {
         document.getElementById('btn-eliminar-obs').classList.remove('oculto');
         document.getElementById('btn-guardar-obs').classList.remove('oculto');
         document.getElementById('panel-obs').classList.remove('modo-lectura');
-        ['obs-rubro','obs-responsable','obs-descripcion','obs-severidad','obs-estado','obs-nota']
-          .forEach(id => { document.getElementById(id).disabled = false; });
-        document.getElementById('obs-foto').disabled = false;
+        ['obs-rubro','obs-responsable','obs-descripcion','obs-severidad','obs-estado','obs-nota'].forEach(id=>{document.getElementById(id).disabled=false;});
+        document.getElementById('obs-foto').disabled=false;
       }
-
-      document.getElementById('btn-guardar-obs').textContent = 'Actualizar';
+      document.getElementById('btn-guardar-obs').textContent='Actualizar';
       abrirPanel();
     }
-
-    function abrirPanel() {
-      document.getElementById('panel-obs').classList.remove('oculto');
-      document.getElementById('panel-obs').classList.add('abierto');
-    }
-
-    function cerrarPanel() {
-      document.getElementById('panel-obs').classList.remove('abierto');
-      setTimeout(() => document.getElementById('panel-obs').classList.add('oculto'), 300);
-      obsSeleccionada = null;
-    }
-
+    function abrirPanel() { document.getElementById('panel-obs').classList.remove('oculto'); document.getElementById('panel-obs').classList.add('abierto'); }
+    function cerrarPanel() { document.getElementById('panel-obs').classList.remove('abierto'); setTimeout(()=>document.getElementById('panel-obs').classList.add('oculto'),300); obsSeleccionada=null; }
     document.getElementById('btn-cerrar-panel').addEventListener('click', cerrarPanel);
 
     function limpiarFormulario() {
-      document.getElementById('obs-rubro').value       = '';
-      document.getElementById('obs-responsable').value = '';
-      document.getElementById('obs-descripcion').value = '';
-      document.getElementById('obs-severidad').value   = 'Media';
-      document.getElementById('obs-estado').value      = 'Pendiente';
-      document.getElementById('obs-nota').value        = '';
-      document.getElementById('obs-foto-preview').src  = '';
-      document.getElementById('obs-foto-preview').classList.add('oculto');
-      document.getElementById('obs-foto').value        = '';
-      document.getElementById('obs-x').value           = '';
-      document.getElementById('obs-y').value           = '';
+      document.getElementById('obs-rubro').value=''; document.getElementById('obs-responsable').value='';
+      document.getElementById('obs-descripcion').value=''; document.getElementById('obs-severidad').value='Media';
+      document.getElementById('obs-estado').value='Pendiente'; document.getElementById('obs-nota').value='';
+      document.getElementById('obs-foto-preview').src=''; document.getElementById('obs-foto-preview').classList.add('oculto');
+      document.getElementById('obs-foto').value=''; document.getElementById('obs-x').value=''; document.getElementById('obs-y').value='';
       document.getElementById('obs-responsable-otro').classList.add('oculto');
     }
 
-    // Rubros
     const rubroSelect = document.getElementById('obs-rubro');
-    RUBROS.forEach(r => {
-      const opt = document.createElement('option');
-      opt.value = r; opt.textContent = r;
-      rubroSelect.appendChild(opt);
-    });
-
-    rubroSelect.addEventListener('change', () => {
-      actualizarResponsables(rubroSelect.value);
-    });
-
+    RUBROS.forEach(r=>{const o=document.createElement('option');o.value=r;o.textContent=r;rubroSelect.appendChild(o);});
+    rubroSelect.addEventListener('change', ()=>actualizarResponsables(rubroSelect.value));
     function actualizarResponsables(rubro) {
-      const sel   = document.getElementById('obs-responsable');
-      const otros = RESPONSABLES[rubro] || ['Jefe de obra','Otro'];
-      const prev  = sel.value;
-      sel.innerHTML = '<option value="">— Seleccioná —</option>';
-      otros.forEach(r => {
-        const opt = document.createElement('option');
-        opt.value = r; opt.textContent = r;
-        sel.appendChild(opt);
-      });
-      if (prev && otros.includes(prev)) sel.value = prev;
+      const sel=document.getElementById('obs-responsable'); const lista=RESPONSABLES[rubro]||['Jefe de obra','Otro']; const prev=sel.value;
+      sel.innerHTML='<option value="">— Seleccioná —</option>';
+      lista.forEach(r=>{const o=document.createElement('option');o.value=r;o.textContent=r;sel.appendChild(o);});
+      if(prev&&lista.includes(prev))sel.value=prev;
     }
+    document.getElementById('obs-responsable').addEventListener('change', ()=>{ document.getElementById('obs-responsable-otro').classList.toggle('oculto',document.getElementById('obs-responsable').value!=='Otro'); });
+    document.getElementById('obs-estado').addEventListener('change', ()=>{ document.getElementById('obs-nota-grupo').classList.toggle('oculto',document.getElementById('obs-estado').value!=='Resuelta'); });
+    document.getElementById('obs-foto').addEventListener('change', e=>{ const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{document.getElementById('obs-foto-preview').src=ev.target.result;document.getElementById('obs-foto-preview').classList.remove('oculto');};r.readAsDataURL(f); });
 
-    document.getElementById('obs-responsable').addEventListener('change', () => {
-      const val = document.getElementById('obs-responsable').value;
-      document.getElementById('obs-responsable-otro').classList.toggle('oculto', val !== 'Otro');
-    });
-
-    document.getElementById('obs-estado').addEventListener('change', () => {
-      const val = document.getElementById('obs-estado').value;
-      document.getElementById('obs-nota-grupo').classList.toggle('oculto', val !== 'Resuelta');
-    });
-
-    // Foto preview
-    document.getElementById('obs-foto').addEventListener('change', (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        document.getElementById('obs-foto-preview').src = ev.target.result;
-        document.getElementById('obs-foto-preview').classList.remove('oculto');
-      };
-      reader.readAsDataURL(file);
-    });
-
-    // Guardar observación
-    document.getElementById('btn-guardar-obs').addEventListener('click', async () => {
-      const rubro       = document.getElementById('obs-rubro').value;
-      const responsable = document.getElementById('obs-responsable').value === 'Otro'
-        ? document.getElementById('obs-responsable-otro-texto').value
-        : document.getElementById('obs-responsable').value;
-      const descripcion = document.getElementById('obs-descripcion').value.trim();
-      const severidad   = document.getElementById('obs-severidad').value;
-      const estado      = document.getElementById('obs-estado').value;
-      const nota        = document.getElementById('obs-nota').value.trim();
-      const x           = parseFloat(document.getElementById('obs-x').value);
-      const y           = parseFloat(document.getElementById('obs-y').value);
-
-      if (!rubro || !descripcion) {
-        alert('Completá al menos el rubro y la descripción.');
-        return;
-      }
-
-      const btn = document.getElementById('btn-guardar-obs');
-      btn.disabled = true;
-      btn.textContent = 'Guardando...';
-
+    document.getElementById('btn-guardar-obs').addEventListener('click', async ()=>{
+      const rubro=document.getElementById('obs-rubro').value;
+      const responsable=document.getElementById('obs-responsable').value==='Otro'?document.getElementById('obs-responsable-otro-texto').value:document.getElementById('obs-responsable').value;
+      const descripcion=document.getElementById('obs-descripcion').value.trim();
+      const severidad=document.getElementById('obs-severidad').value;
+      const estado=document.getElementById('obs-estado').value;
+      const nota=document.getElementById('obs-nota').value.trim();
+      const x=parseFloat(document.getElementById('obs-x').value);
+      const y=parseFloat(document.getElementById('obs-y').value);
+      if(!rubro||!descripcion){alert('Completá al menos el rubro y la descripción.');return;}
+      const btn=document.getElementById('btn-guardar-obs');btn.disabled=true;btn.textContent='Guardando...';
       try {
-        // Subir foto si hay una nueva
-        let fotoUrl = obsSeleccionada ? (observaciones[obsSeleccionada]?.fotoUrl || '') : '';
-        const fotoFile = document.getElementById('obs-foto').files[0];
-        if (fotoFile) {
-          const fotoRef = ref(storage, `fotos/${currentPlano.id}/${Date.now()}_${fotoFile.name}`);
-          await uploadBytes(fotoRef, fotoFile);
-          fotoUrl = await getDownloadURL(fotoRef);
-        }
-
-        if (obsSeleccionada) {
-          // Actualizar
-          const data = { rubro, responsable, descripcion, severidad, estado,
-            notaResolucion: nota, fotoUrl, actualizadoEn: serverTimestamp() };
-          if (estado === 'Resuelta' && observaciones[obsSeleccionada]?.estado !== 'Resuelta') {
-            data.resueltaEn = serverTimestamp();
-          }
-          await updateDoc(doc(db, 'observaciones', obsSeleccionada), data);
+        let fotoUrl=obsSeleccionada?(observaciones[obsSeleccionada]?.fotoUrl||''):'';
+        const fotoFile=document.getElementById('obs-foto').files[0];
+        if(fotoFile){const fotoRef=ref(storage,`fotos/${currentPlano.id}/${Date.now()}_${fotoFile.name}`);await uploadBytes(fotoRef,fotoFile);fotoUrl=await getDownloadURL(fotoRef);}
+        if(obsSeleccionada){
+          const data={rubro,responsable,descripcion,severidad,estado,notaResolucion:nota,fotoUrl,actualizadoEn:serverTimestamp()};
+          if(estado==='Resuelta'&&observaciones[obsSeleccionada]?.estado!=='Resuelta')data.resueltaEn=serverTimestamp();
+          await updateDoc(doc(db,'observaciones',obsSeleccionada),data);
         } else {
-          // Nueva — obtener número correlativo
-          const numero = await obtenerSiguienteNumero();
-          await addDoc(collection(db, 'observaciones'), {
-            planoId: currentPlano.id,
-            numero,
-            pagina: currentPagina,
-            x, y,
-            rubro, responsable, descripcion, severidad,
-            estado: 'Pendiente',
-            notaResolucion: '',
-            fotoUrl,
-            creadoPor:  currentUser.uid,
-            creadoEn:   serverTimestamp(),
-            resueltaEn: null,
-            sincronizadoSheet: false,
-          });
+          const nums=(await getDocs(query(collection(db,'observaciones'),where('planoId','==',currentPlano.id)))).docs.map(d=>{const m=(d.data().numero||'').match(/(\d+)$/);return m?parseInt(m[1]):0;});
+          const numero=`OBS-${(Math.max(0,...nums)+1).toString().padStart(3,'0')}`;
+          await addDoc(collection(db,'observaciones'),{planoId:currentPlano.id,numero,pagina:currentPagina,x,y,rubro,responsable,descripcion,severidad,estado:'Pendiente',notaResolucion:'',fotoUrl,creadoPor:currentUser.uid,creadoEn:serverTimestamp(),resueltaEn:null,sincronizadoSheet:false});
         }
         cerrarPanel();
-      } catch (e) {
-        console.error(e);
-        alert('Error al guardar. Intentá de nuevo.');
-      } finally {
-        btn.disabled = false;
-        btn.textContent = obsSeleccionada ? 'Actualizar' : 'Guardar';
-      }
+      } catch(e){console.error(e);alert('Error al guardar.');}
+      finally{btn.disabled=false;btn.textContent=obsSeleccionada?'Actualizar':'Guardar';}
     });
 
-    async function obtenerSiguienteNumero() {
-      const q    = query(collection(db, 'observaciones'), where('planoId', '==', currentPlano.id));
-      const snap = await getDocs(q);
-      const nums = snap.docs.map(d => {
-        const n = d.data().numero || '';
-        const m = n.match(/(\d+)$/);
-        return m ? parseInt(m[1]) : 0;
-      });
-      const siguiente = (Math.max(0, ...nums) + 1).toString().padStart(3, '0');
-      return `OBS-${siguiente}`;
-    }
-
-    // Eliminar observación
-    document.getElementById('btn-eliminar-obs').addEventListener('click', async () => {
-      if (!obsSeleccionada) return;
-      const obs = observaciones[obsSeleccionada];
-      if (!confirm(`¿Eliminar ${obs.numero}?`)) return;
-
-      // Eliminar foto si existe
-      if (obs.fotoUrl) {
-        try {
-          const fotoRef = ref(storage, obs.fotoUrl);
-          await deleteObject(fotoRef);
-        } catch (e) { /* ignorar si no existe */ }
-      }
-      await deleteDoc(doc(db, 'observaciones', obsSeleccionada));
+    document.getElementById('btn-eliminar-obs').addEventListener('click', async ()=>{
+      if(!obsSeleccionada)return;
+      const obs=observaciones[obsSeleccionada];
+      if(!confirm(`¿Eliminar ${obs.numero}?`))return;
+      if(obs.fotoUrl){try{await deleteObject(ref(storage,obs.fotoUrl));}catch(e){}}
+      await deleteDoc(doc(db,'observaciones',obsSeleccionada));
       cerrarPanel();
     });
 
-    // ─── SINCRONIZAR CON GOOGLE SHEETS ───────────────────────────────────────
-    document.getElementById('btn-sincronizar').addEventListener('click', sincronizarSheets);
-
-    async function sincronizarSheets() {
-      const noSincronizadas = Object.values(observaciones).filter(o => !o.sincronizadoSheet);
-      if (noSincronizadas.length === 0) {
-        alert('No hay observaciones nuevas para sincronizar.');
-        return;
+    // ─── SINCRONIZAR ──────────────────────────────────────────────────────────
+    document.getElementById('btn-sincronizar').addEventListener('click', async ()=>{
+      const noSync=Object.values(observaciones).filter(o=>!o.sincronizadoSheet);
+      if(!noSync.length){alert('No hay observaciones nuevas para sincronizar.');return;}
+      const btn=document.getElementById('btn-sincronizar');btn.disabled=true;btn.textContent='Sincronizando...';
+      let errores=0;
+      for(const obs of noSync){
+        try{
+          const res=await fetch(APPS_SCRIPT_URL,{method:'POST',body:JSON.stringify({accion:'upsert',id:obs.numero,obra:OBRA_NOMBRE,plano:currentPlano.nombre,pagina:obs.pagina,rubro:obs.rubro,descripcion:obs.descripcion,severidad:obs.severidad,responsable:obs.responsable,foto:obs.fotoUrl||'',fechaCreacion:obs.creadoEn?.toDate?.()?.toLocaleDateString('es-AR')||'',estado:obs.estado,notaResolucion:obs.notaResolucion||'',fechaResolucion:obs.resueltaEn?.toDate?.()?.toLocaleDateString('es-AR')||''})});
+          if(res.ok)await updateDoc(doc(db,'observaciones',obs.id),{sincronizadoSheet:true});else errores++;
+        }catch(e){console.error(e);errores++;}
       }
-
-      const btn = document.getElementById('btn-sincronizar');
-      btn.disabled = true;
-      btn.textContent = 'Sincronizando...';
-
-      let errores = 0;
-      for (const obs of noSincronizadas) {
-        try {
-          const payload = {
-            accion:       'upsert',
-            id:           obs.numero,
-            obra:         OBRA_NOMBRE,
-            plano:        currentPlano.nombre,
-            pagina:       obs.pagina,
-            rubro:        obs.rubro,
-            descripcion:  obs.descripcion,
-            severidad:    obs.severidad,
-            responsable:  obs.responsable,
-            foto:         obs.fotoUrl || '',
-            fechaCreacion: obs.creadoEn?.toDate?.()?.toLocaleDateString('es-AR') || '',
-            estado:       obs.estado,
-            notaResolucion: obs.notaResolucion || '',
-            fechaResolucion: obs.resueltaEn?.toDate?.()?.toLocaleDateString('es-AR') || '',
-          };
-          const res = await fetch(APPS_SCRIPT_URL, {
-            method: 'POST',
-            body:   JSON.stringify(payload),
-          });
-          if (res.ok) {
-            await updateDoc(doc(db, 'observaciones', obs.id), { sincronizadoSheet: true });
-          } else {
-            errores++;
-          }
-        } catch (e) {
-          console.error(e);
-          errores++;
-        }
-      }
-
-      btn.disabled = false;
-      btn.textContent = '☁ Sincronizar';
-
-      if (errores === 0) {
-        mostrarToast(`✓ ${noSincronizadas.length} observación/es sincronizadas`);
-      } else {
-        alert(`Se sincronizaron ${noSincronizadas.length - errores} de ${noSincronizadas.length}. Revisá la conexión.`);
-      }
-    }
-
-    function mostrarToast(msg) {
-      const toast = document.getElementById('toast');
-      toast.textContent = msg;
-      toast.classList.remove('oculto');
-      toast.classList.add('visible');
-      setTimeout(() => {
-        toast.classList.remove('visible');
-        setTimeout(() => toast.classList.add('oculto'), 300);
-      }, 3000);
-    }
-
-    // ─── PANEL USUARIOS (solo admin) ──────────────────────────────────────────
-    document.getElementById('btn-usuarios').addEventListener('click', async () => {
-      if (currentUserData?.rol !== 'admin') return;
-      await cargarPanelUsuarios();
-      document.getElementById('modal-usuarios').classList.remove('oculto');
+      btn.disabled=false;btn.textContent='☁ Sincronizar';
+      if(!errores)mostrarToast(`✓ ${noSync.length} observación/es sincronizadas`);
+      else alert(`Se sincronizaron ${noSync.length-errores} de ${noSync.length}.`);
     });
 
-    document.getElementById('btn-cerrar-modal-usuarios').addEventListener('click', () => {
-      document.getElementById('modal-usuarios').classList.add('oculto');
-    });
+    function mostrarToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.remove('oculto');t.classList.add('visible');setTimeout(()=>{t.classList.remove('visible');setTimeout(()=>t.classList.add('oculto'),300);},3000);}
 
-    async function cargarPanelUsuarios() {
-      const lista = document.getElementById('lista-usuarios');
-      lista.innerHTML = '<div class="loading">Cargando usuarios...</div>';
-
-      const snap = await getDocs(collection(db, 'usuarios'));
-      lista.innerHTML = '';
-      snap.forEach(docSnap => {
-        const u   = { id: docSnap.id, ...docSnap.data() };
-        const div = document.createElement('div');
-        div.className = 'item-usuario';
-        div.innerHTML = `
-          <div class="usuario-info">
-            <div class="usuario-nombre">${u.nombre || u.email}</div>
-            <div class="usuario-email">${u.email}</div>
-          </div>
-          <div class="usuario-acciones">
-            <select class="sel-rol" data-uid="${u.id}" style="width:90px;padding:5px 6px;font-size:11px;">
-              <option value="lector"    ${u.rol==='lector'    ? 'selected':''}>Lector</option>
-              <option value="inspector" ${u.rol==='inspector' ? 'selected':''}>Inspector</option>
-              <option value="admin"     ${u.rol==='admin'     ? 'selected':''}>Admin</option>
-            </select>
-            <button class="btn-toggle-auth ${u.autorizado ? 'activo' : ''}"
-              data-uid="${u.id}" data-auth="${u.autorizado}">
-              ${u.autorizado ? '✓ Autorizado' : 'Autorizar'}
-            </button>
-          </div>
-        `;
-        div.querySelector('.btn-toggle-auth').addEventListener('click', async (e) => {
-          const btn     = e.currentTarget;
-          const uid     = btn.dataset.uid;
-          const actual  = btn.dataset.auth === 'true';
-          await updateDoc(doc(db, 'usuarios', uid), { autorizado: !actual });
-          cargarPanelUsuarios();
-        });
-
-        // Selector de rol
-        const rolSel = div.querySelector('.sel-rol');
-        if (rolSel) {
-          rolSel.addEventListener('change', async (e) => {
-            const uid = e.currentTarget.dataset.uid;
-            await updateDoc(doc(db, 'usuarios', uid), { rol: e.currentTarget.value });
-          });
-        }
-
+    // ─── USUARIOS ─────────────────────────────────────────────────────────────
+    document.getElementById('btn-usuarios').addEventListener('click', async ()=>{if(currentUserData?.rol!=='admin')return;await cargarPanelUsuarios();document.getElementById('modal-usuarios').classList.remove('oculto');});
+    document.getElementById('btn-cerrar-modal-usuarios').addEventListener('click', ()=>document.getElementById('modal-usuarios').classList.add('oculto'));
+    async function cargarPanelUsuarios(){
+      const lista=document.getElementById('lista-usuarios');lista.innerHTML='<div class="loading">Cargando...</div>';
+      const snap=await getDocs(collection(db,'usuarios'));lista.innerHTML='';
+      snap.forEach(d=>{
+        const u={id:d.id,...d.data()};const div=document.createElement('div');div.className='item-usuario';
+        div.innerHTML=`<div class="usuario-info"><div class="usuario-nombre">${u.nombre||u.email}</div><div class="usuario-email">${u.email}</div></div><div class="usuario-acciones"><select class="sel-rol" data-uid="${u.id}" style="width:90px;padding:5px 6px;font-size:11px;"><option value="lector" ${u.rol==='lector'?'selected':''}>Lector</option><option value="inspector" ${u.rol==='inspector'?'selected':''}>Inspector</option><option value="admin" ${u.rol==='admin'?'selected':''}>Admin</option></select><button class="btn-toggle-auth ${u.autorizado?'activo':''}" data-uid="${u.id}" data-auth="${u.autorizado}">${u.autorizado?'✓ Autorizado':'Autorizar'}</button></div>`;
+        div.querySelector('.btn-toggle-auth').addEventListener('click',async e=>{const b=e.currentTarget;await updateDoc(doc(db,'usuarios',b.dataset.uid),{autorizado:b.dataset.auth!=='true'});cargarPanelUsuarios();});
+        const rs=div.querySelector('.sel-rol');if(rs)rs.addEventListener('change',async e=>{await updateDoc(doc(db,'usuarios',e.currentTarget.dataset.uid),{rol:e.currentTarget.value});});
         lista.appendChild(div);
       });
     }
   </script>
 
   <style>
-    /* ─── RESET & BASE ─────────────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
     :root {
-      --bg:          #0f1117;
-      --bg2:         #1a1d27;
-      --bg3:         #232736;
-      --border:      #2e3347;
-      --accent:      #4f7cff;
-      --accent2:     #6c8fff;
-      --danger:      #ff4f4f;
-      --success:     #2ecc71;
-      --warning:     #f39c12;
-      --text:        #e8eaf0;
-      --text2:       #9aa0b8;
-      --text3:       #5a6080;
-      --pin-pend:    #ff4f4f;
-      --pin-res:     #2ecc71;
-      --radius:      10px;
-      --radius-sm:   6px;
-      --shadow:      0 4px 24px rgba(0,0,0,0.4);
-      --trans:       0.2s ease;
-    }
-
-    html, body {
-      height: 100%;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      font-size: 14px;
-      overflow: hidden;
-    }
-
-    button {
-      cursor: pointer;
-      border: none;
-      font-family: inherit;
-      font-size: 13px;
-      transition: var(--trans);
-    }
-
-    input, select, textarea {
-      font-family: inherit;
-      font-size: 13px;
-      background: var(--bg);
-      color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      padding: 8px 10px;
-      width: 100%;
-      outline: none;
-      transition: border-color var(--trans);
-    }
-
-    input:focus, select:focus, textarea:focus {
-      border-color: var(--accent);
-    }
-
-    textarea { resize: vertical; min-height: 70px; }
-
-    .oculto { display: none !important; }
-    .loading { color: var(--text2); padding: 20px; text-align: center; }
-
-    /* ─── PANTALLA LOGIN ────────────────────────────────────────────── */
-    #pantalla-login {
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 32px;
-      background: radial-gradient(ellipse at 50% 30%, #1a2040 0%, var(--bg) 70%);
-    }
-
-    .login-logo {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .login-logo-icon {
-      width: 72px;
-      height: 72px;
-      background: var(--accent);
-      border-radius: 18px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 36px;
-    }
-
-    .login-title {
-      font-size: 22px;
-      font-weight: 700;
-      letter-spacing: -0.3px;
-    }
-
-    .login-subtitle {
-      color: var(--text2);
-      font-size: 13px;
-    }
-
-    .login-card {
-      background: var(--bg2);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 32px 40px;
-      width: 340px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 20px;
-      box-shadow: var(--shadow);
-    }
-
-    .login-card h2 {
-      font-size: 16px;
-      font-weight: 600;
-      color: var(--text);
-    }
-
-    .login-card p {
-      font-size: 13px;
-      color: var(--text2);
-      text-align: center;
-      line-height: 1.5;
-    }
-
-    #btn-login {
-      background: #fff;
-      color: #333;
-      padding: 10px 20px;
-      border-radius: 8px;
-      font-weight: 600;
-      font-size: 14px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      width: 100%;
-      justify-content: center;
-    }
-
-    #btn-login:hover { background: #f0f0f0; }
-
-    .google-icon {
-      width: 18px;
-      height: 18px;
-      background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><path fill="%23EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="%234285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="%23FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="%2334A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>') center/contain no-repeat;
-    }
-
-    /* ─── PANTALLA ESPERA ───────────────────────────────────────────── */
-    #pantalla-espera {
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 24px;
-    }
-
-    .espera-card {
-      background: var(--bg2);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 40px;
-      max-width: 380px;
-      text-align: center;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 16px;
-    }
-
-    .espera-icon { font-size: 48px; }
-    .espera-card h2 { font-size: 18px; }
-    .espera-card p { color: var(--text2); line-height: 1.6; }
-
-    /* ─── PANTALLA PLANOS ───────────────────────────────────────────── */
-    #pantalla-planos {
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .header {
-      background: var(--bg2);
-      border-bottom: 1px solid var(--border);
-      padding: 0 20px;
-      height: 56px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-shrink: 0;
-    }
-
-    .header-marca {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .header-icono {
-      width: 32px;
-      height: 32px;
-      background: var(--accent);
-      border-radius: 8px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 16px;
-    }
-
-    .header-titulo {
-      font-weight: 700;
-      font-size: 15px;
-    }
-
-    .header-subtitulo {
-      font-size: 11px;
-      color: var(--text2);
-    }
-
-    .header-acciones {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .user-info {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .user-avatar {
-      width: 30px;
-      height: 30px;
-      border-radius: 50%;
-      object-fit: cover;
-      background: var(--bg3);
-    }
-
-    .user-texts { display: flex; flex-direction: column; }
-    .user-nombre { font-size: 12px; font-weight: 600; }
-    .user-email-small { font-size: 10px; color: var(--text2); }
-
-    .btn-secondary {
-      background: var(--bg3);
-      color: var(--text);
-      padding: 7px 14px;
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--border);
-    }
-
-    .btn-secondary:hover { background: var(--border); }
-
-    .planos-body {
-      flex: 1;
-      overflow-y: auto;
-      padding: 24px;
-    }
-
-    .planos-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 20px;
-    }
-
-    .planos-header h2 {
-      font-size: 18px;
-      font-weight: 700;
-    }
-
-    .planos-header p {
-      font-size: 12px;
-      color: var(--text2);
-      margin-top: 2px;
-    }
-
-    .btn-primary {
-      background: var(--accent);
-      color: #fff;
-      padding: 9px 18px;
-      border-radius: var(--radius-sm);
-      font-weight: 600;
-    }
-
-    .btn-primary:hover { background: var(--accent2); }
-
-    .lista-planos {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .tarjeta-plano {
-      background: var(--bg2);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 16px 20px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      transition: border-color var(--trans);
-    }
-
-    .tarjeta-plano:hover { border-color: var(--accent); }
-
-    .plano-info { display: flex; align-items: center; gap: 14px; }
-    .plano-icono { font-size: 24px; }
-    .plano-nombre { font-weight: 600; font-size: 15px; }
-    .plano-meta { font-size: 11px; color: var(--text2); margin-top: 2px; }
-    .plano-acciones { display: flex; align-items: center; gap: 8px; }
-
-    .btn-abrir {
-      background: var(--accent);
-      color: #fff;
-      padding: 7px 16px;
-      border-radius: var(--radius-sm);
-      font-weight: 600;
-    }
-
-    .btn-abrir:hover { background: var(--accent2); }
-
-    .btn-eliminar-plano {
-      background: transparent;
-      color: var(--text2);
-      padding: 6px 8px;
-      border-radius: var(--radius-sm);
-      font-size: 16px;
-      border: 1px solid var(--border);
-    }
-
-    .btn-eliminar-plano:hover { color: var(--danger); border-color: var(--danger); }
-
-    .empty-state {
-      text-align: center;
-      padding: 60px 20px;
-      color: var(--text2);
-    }
-
-    .empty-icon { font-size: 48px; margin-bottom: 16px; }
-    .empty-state p { margin-bottom: 6px; line-height: 1.5; }
-
-    /* ─── PANTALLA INSPECTOR ────────────────────────────────────────── */
-    #pantalla-inspector {
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .inspector-header {
-      background: var(--bg2);
-      border-bottom: 1px solid var(--border);
-      padding: 0 16px;
-      height: 56px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      flex-shrink: 0;
-    }
-
-    .btn-volver {
-      background: var(--bg3);
-      color: var(--text);
-      padding: 7px 12px;
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--border);
-      font-size: 13px;
-    }
-
-    .btn-volver:hover { background: var(--border); }
-
-    .inspector-titulo {
-      flex: 1;
-      min-width: 0;
-    }
-
-    .inspector-titulo h1 {
-      font-size: 15px;
-      font-weight: 700;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .inspector-titulo span {
-      font-size: 11px;
-      color: var(--text2);
-    }
-
-    .inspector-toolbar {
-      background: var(--bg2);
-      border-bottom: 1px solid var(--border);
-      padding: 8px 16px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-shrink: 0;
-    }
-
-    .btn-pag {
-      background: var(--bg3);
-      color: var(--text);
-      padding: 6px 12px;
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--border);
-    }
-
-    .btn-pag:disabled { opacity: 0.4; cursor: default; }
-    .btn-pag:not(:disabled):hover { background: var(--border); }
-
-    #btn-pagina-actual {
-      background: var(--bg3);
-      color: var(--text2);
-      padding: 6px 12px;
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--border);
-      font-size: 12px;
-      min-width: 90px;
-      text-align: center;
-    }
-
-    .toolbar-sep { flex: 1; }
-
-    #btn-nueva-obs {
-      background: var(--accent);
-      color: #fff;
-      padding: 7px 14px;
-      border-radius: var(--radius-sm);
-      font-weight: 600;
-    }
-
-    #btn-nueva-obs:hover { background: var(--accent2); }
-    #btn-nueva-obs.activo { background: var(--danger); }
-
-    #btn-sincronizar {
-      background: var(--bg3);
-      color: var(--text);
-      padding: 7px 14px;
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--border);
-    }
-
-    #btn-sincronizar:hover { background: var(--border); }
-
-    #contador-obs {
-      font-size: 12px;
-      color: var(--text2);
-      white-space: nowrap;
-    }
-
-    .inspector-body {
-      flex: 1;
-      display: flex;
-      overflow: hidden;
-      position: relative;
-    }
-
-    .pdf-area {
-      flex: 1;
-      overflow: hidden;
-      position: relative;
-      background: var(--bg);
-      cursor: grab;
-      user-select: none;
-    }
-
-    .pdf-area.panning {
-      cursor: grabbing;
-    }
-
-    #pdf-wrapper {
-      position: relative;
-      display: inline-block;
-      min-width: 100%;
-    }
-
-    #pdf-wrapper.modo-edicion,
-    .pdf-area.modo-edicion-activo {
-      cursor: crosshair !important;
-    }
-
-    #pdf-canvas {
-      display: block;
-      /* Sin max-width para permitir zoom in más allá del ancho del contenedor */
-    }
-
-    #marcadores-overlay {
-      position: absolute;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      pointer-events: none;
-    }
-
-    .pin {
-      position: absolute;
-      width: 28px;
-      height: 28px;
-      border-radius: 50% 50% 50% 0;
-      transform: translate(-50%, -100%) rotate(-45deg);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 10px;
-      font-weight: 700;
-      color: #fff;
-      cursor: pointer;
-      pointer-events: all;
-      transition: transform var(--trans);
-      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
-    }
-
-    .pin span {
-      transform: rotate(45deg);
-      display: block;
-    }
-
-    .pin:hover { transform: translate(-50%, -110%) rotate(-45deg) scale(1.1); }
-
-    .pin-pendiente { background: var(--pin-pend); }
-    .pin-resuelta  { background: var(--pin-res); }
-
-    .pin::after {
-      content: attr(textContent);
-      transform: rotate(45deg);
-      position: absolute;
-      font-size: 10px;
-    }
-
-    #pdf-spinner {
-      position: absolute;
-      top: 50%; left: 50%;
-      transform: translate(-50%, -50%);
-      font-size: 13px;
-      color: var(--text2);
-      background: var(--bg2);
-      padding: 12px 20px;
-      border-radius: var(--radius);
-      border: 1px solid var(--border);
-    }
-
-    /* ─── PANEL OBSERVACION ─────────────────────────────────────────── */
-    #panel-obs {
-      position: absolute;
-      right: 0; top: 0; bottom: 0;
-      width: 320px;
-      background: var(--bg2);
-      border-left: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      transform: translateX(100%);
-      transition: transform 0.3s ease;
-      z-index: 10;
-      box-shadow: -4px 0 20px rgba(0,0,0,0.3);
-    }
-
-    #panel-obs.abierto { transform: translateX(0); }
-
-    .panel-header {
-      padding: 14px 16px;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-shrink: 0;
-    }
-
-    .panel-header h3 { font-size: 14px; font-weight: 700; }
-
-    .btn-cerrar-panel {
-      background: var(--bg3);
-      color: var(--text2);
-      width: 28px; height: 28px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 16px;
-      border: 1px solid var(--border);
-    }
-
-    .panel-body {
-      flex: 1;
-      overflow-y: auto;
-      padding: 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    .campo { display: flex; flex-direction: column; gap: 5px; }
-    .campo label { font-size: 11px; color: var(--text2); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
-
-    .campo-foto { display: flex; flex-direction: column; gap: 6px; }
-
-    #obs-foto-preview {
-      width: 100%;
-      border-radius: var(--radius-sm);
-      object-fit: cover;
-      max-height: 150px;
-      border: 1px solid var(--border);
-    }
-
-    .btn-foto {
-      background: var(--bg3);
-      color: var(--text);
-      padding: 7px;
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--border);
-      text-align: center;
-      font-size: 12px;
-    }
-
-    .btn-foto:hover { background: var(--border); }
-
-    .panel-footer {
-      padding: 12px 16px;
-      border-top: 1px solid var(--border);
-      display: flex;
-      gap: 8px;
-      flex-shrink: 0;
-    }
-
-    #btn-guardar-obs {
-      flex: 1;
-      background: var(--accent);
-      color: #fff;
-      padding: 9px;
-      border-radius: var(--radius-sm);
-      font-weight: 600;
-    }
-
-    #btn-guardar-obs:hover:not(:disabled) { background: var(--accent2); }
-    #btn-guardar-obs:disabled { opacity: 0.5; cursor: default; }
-
-    #btn-eliminar-obs {
-      background: var(--bg3);
-      color: var(--danger);
-      padding: 9px 12px;
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--border);
-    }
-
-    #btn-eliminar-obs:hover { background: rgba(255,79,79,0.1); }
-
-    /* Modo lectura */
-    #panel-obs.modo-lectura .campo label::after {
-      content: '';
-    }
-    #panel-obs.modo-lectura select:disabled,
-    #panel-obs.modo-lectura input:disabled,
-    #panel-obs.modo-lectura textarea:disabled {
-      opacity: 0.75;
-      cursor: default;
-      background: var(--bg3);
-    }
-    .badge-lectura {
-      font-size: 10px;
-      padding: 2px 8px;
-      border-radius: 20px;
-      background: rgba(154,160,184,0.15);
-      color: var(--text2);
-      font-weight: 600;
-      letter-spacing: 0.3px;
-    }
-
-    /* ─── MODALES ───────────────────────────────────────────────────── */
-    .modal-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.6);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 100;
-      padding: 20px;
-    }
-
-    .modal {
-      background: var(--bg2);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      width: 480px;
-      max-width: 100%;
-      max-height: 80vh;
-      display: flex;
-      flex-direction: column;
-      box-shadow: var(--shadow);
-    }
-
-    .modal-header {
-      padding: 16px 20px;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      flex-shrink: 0;
-    }
-
-    .modal-header h3 { font-size: 15px; font-weight: 700; }
-
-    .modal-body {
-      flex: 1;
-      overflow-y: auto;
-      padding: 16px 20px;
-    }
-
-    .btn-cerrar-modal {
-      background: var(--bg3);
-      color: var(--text2);
-      width: 28px; height: 28px;
-      border-radius: 50%;
-      font-size: 16px;
-      border: 1px solid var(--border);
-    }
-
-    .item-dropbox {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 10px 0;
-      border-bottom: 1px solid var(--border);
-      gap: 12px;
-    }
-
-    .item-dropbox span { font-size: 13px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-    .btn-seleccionar {
-      background: var(--accent);
-      color: #fff;
-      padding: 6px 12px;
-      border-radius: var(--radius-sm);
-      font-size: 12px;
-      flex-shrink: 0;
-    }
-
-    .dropbox-breadcrumb-bar {
-      padding: 8px 20px;
-      background: var(--bg3);
-      border-bottom: 1px solid var(--border);
-      font-size: 11px;
-      color: var(--text2);
-      font-family: monospace;
-    }
-
-    .item-carpeta {
-      cursor: pointer;
-      font-weight: 500;
-    }
-
-    .item-carpeta:hover {
-      background: var(--bg3);
-      border-radius: var(--radius-sm);
-    }
-
-    .item-arrow {
-      color: var(--text2);
-      font-size: 18px;
-    }
-
-    .item-volver {
-      cursor: pointer;
-      color: var(--accent2);
-      font-weight: 600;
-    }
-
-    .item-volver:hover {
-      background: var(--bg3);
-      border-radius: var(--radius-sm);
-    }
-
-    /* ─── USUARIOS ──────────────────────────────────────────────────── */
-    .item-usuario {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 12px 0;
-      border-bottom: 1px solid var(--border);
-      gap: 12px;
-    }
-
-    .usuario-nombre { font-size: 13px; font-weight: 600; }
-    .usuario-email  { font-size: 11px; color: var(--text2); margin-top: 2px; }
-    .usuario-acciones { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-
-    .badge-rol {
-      font-size: 10px;
-      padding: 3px 8px;
-      border-radius: 20px;
-      font-weight: 600;
-      text-transform: uppercase;
-    }
-
-    .badge-rol.admin    { background: rgba(79,124,255,0.2); color: var(--accent2); }
-    .badge-rol.inspector { background: rgba(46,204,113,0.15); color: var(--success); }
-
-    .btn-toggle-auth {
-      padding: 5px 10px;
-      border-radius: var(--radius-sm);
-      font-size: 11px;
-      font-weight: 600;
-      background: var(--bg3);
-      color: var(--text2);
-      border: 1px solid var(--border);
-    }
-
-    .btn-toggle-auth.activo {
-      background: rgba(46,204,113,0.15);
-      color: var(--success);
-      border-color: var(--success);
-    }
-
-    /* ─── TOAST ─────────────────────────────────────────────────────── */
-    #toast {
-      position: fixed;
-      bottom: 24px;
-      left: 50%;
-      transform: translateX(-50%) translateY(20px);
-      background: var(--bg3);
-      color: var(--text);
-      padding: 10px 20px;
-      border-radius: 20px;
-      border: 1px solid var(--border);
-      font-size: 13px;
-      opacity: 0;
-      transition: opacity 0.3s, transform 0.3s;
-      z-index: 200;
-    }
-
-    #toast.visible {
-      opacity: 1;
-      transform: translateX(-50%) translateY(0);
-    }
-
-    /* ─── RESPONSIVE MOBILE ─────────────────────────────────────────── */
-    @media (max-width: 600px) {
-      #panel-obs {
-        position: absolute;
-        right: 0; top: 0; bottom: 0;
-        width: 100%;
-        max-width: 360px;
-        z-index: 50;
-      }
-
-      .login-card { width: 100%; padding: 24px 20px; }
-
-      .user-texts { display: none; }
-
-      #btn-sincronizar span { display: none; }
+      --bg:#0f1117;--bg2:#1a1d27;--bg3:#232736;--border:#2e3347;
+      --accent:#4f7cff;--accent2:#6c8fff;--danger:#ff4f4f;--success:#2ecc71;
+      --text:#e8eaf0;--text2:#9aa0b8;--pin-pend:#ff4f4f;--pin-res:#2ecc71;
+      --radius:10px;--radius-sm:6px;--shadow:0 4px 24px rgba(0,0,0,0.4);--trans:0.2s ease;
+    }
+    html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);font-size:14px;overflow:hidden;}
+    button{cursor:pointer;border:none;font-family:inherit;font-size:13px;transition:var(--trans);}
+    input,select,textarea{font-family:inherit;font-size:13px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 10px;width:100%;outline:none;transition:border-color var(--trans);}
+    input:focus,select:focus,textarea:focus{border-color:var(--accent);}
+    textarea{resize:vertical;min-height:70px;}
+    .oculto{display:none!important;}
+    .loading{color:var(--text2);padding:20px;text-align:center;}
+
+    #pantalla-login{height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:32px;background:radial-gradient(ellipse at 50% 30%,#1a2040 0%,var(--bg) 70%);}
+    .login-logo{display:flex;flex-direction:column;align-items:center;gap:12px;}
+    .login-logo-icon{width:72px;height:72px;background:var(--accent);border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:36px;}
+    .login-title{font-size:22px;font-weight:700;letter-spacing:-0.3px;}
+    .login-subtitle{color:var(--text2);font-size:13px;}
+    .login-card{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:32px 40px;width:340px;display:flex;flex-direction:column;align-items:center;gap:20px;box-shadow:var(--shadow);}
+    .login-card h2{font-size:16px;font-weight:600;}
+    .login-card p{font-size:13px;color:var(--text2);text-align:center;line-height:1.5;}
+    #btn-login{background:#fff;color:#333;padding:10px 20px;border-radius:8px;font-weight:600;font-size:14px;display:flex;align-items:center;gap:10px;width:100%;justify-content:center;}
+    #btn-login:hover{background:#f0f0f0;}
+    .google-icon{width:18px;height:18px;background:url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><path fill="%23EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="%234285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="%23FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="%2334A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>') center/contain no-repeat;}
+
+    #pantalla-espera{height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;}
+    .espera-card{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:40px;max-width:380px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:16px;}
+    .espera-icon{font-size:48px;}.espera-card h2{font-size:18px;}.espera-card p{color:var(--text2);line-height:1.6;}
+
+    #pantalla-planos{height:100vh;display:flex;flex-direction:column;}
+    .header{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 20px;height:56px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+    .header-marca{display:flex;align-items:center;gap:10px;}
+    .header-icono{width:32px;height:32px;background:var(--accent);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;}
+    .header-titulo{font-weight:700;font-size:15px;}.header-subtitulo{font-size:11px;color:var(--text2);}
+    .header-acciones{display:flex;align-items:center;gap:10px;}
+    .user-info{display:flex;align-items:center;gap:8px;}
+    .user-avatar{width:30px;height:30px;border-radius:50%;object-fit:cover;background:var(--bg3);}
+    .user-texts{display:flex;flex-direction:column;}.user-nombre{font-size:12px;font-weight:600;}.user-email-small{font-size:10px;color:var(--text2);}
+    .btn-secondary{background:var(--bg3);color:var(--text);padding:7px 14px;border-radius:var(--radius-sm);border:1px solid var(--border);}
+    .btn-secondary:hover{background:var(--border);}
+    .planos-body{flex:1;overflow-y:auto;padding:24px;}
+    .planos-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;}
+    .planos-header h2{font-size:18px;font-weight:700;}.planos-header p{font-size:12px;color:var(--text2);margin-top:2px;}
+    .btn-primary{background:var(--accent);color:#fff;padding:9px 18px;border-radius:var(--radius-sm);font-weight:600;}
+    .btn-primary:hover{background:var(--accent2);}
+    .lista-planos{display:flex;flex-direction:column;gap:10px;}
+    .tarjeta-plano{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;display:flex;align-items:center;justify-content:space-between;transition:border-color var(--trans);}
+    .tarjeta-plano:hover{border-color:var(--accent);}
+    .plano-info{display:flex;align-items:center;gap:14px;}.plano-icono{font-size:24px;}
+    .plano-nombre{font-weight:600;font-size:15px;}.plano-meta{font-size:11px;color:var(--text2);margin-top:2px;}
+    .plano-acciones{display:flex;align-items:center;gap:8px;}
+    .btn-abrir{background:var(--accent);color:#fff;padding:7px 16px;border-radius:var(--radius-sm);font-weight:600;}
+    .btn-abrir:hover{background:var(--accent2);}
+    .btn-eliminar-plano{background:transparent;color:var(--text2);padding:6px 8px;border-radius:var(--radius-sm);font-size:16px;border:1px solid var(--border);}
+    .btn-eliminar-plano:hover{color:var(--danger);border-color:var(--danger);}
+    .empty-state{text-align:center;padding:60px 20px;color:var(--text2);}
+    .empty-icon{font-size:48px;margin-bottom:16px;}.empty-state p{margin-bottom:6px;line-height:1.5;}
+
+    #pantalla-inspector{height:100vh;display:flex;flex-direction:column;}
+    .inspector-header{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 16px;height:56px;display:flex;align-items:center;gap:12px;flex-shrink:0;}
+    .btn-volver{background:var(--bg3);color:var(--text);padding:7px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);font-size:13px;}
+    .btn-volver:hover{background:var(--border);}
+    .inspector-titulo{flex:1;min-width:0;}
+    .inspector-titulo h1{font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .inspector-titulo span{font-size:11px;color:var(--text2);}
+    .inspector-toolbar{background:var(--bg2);border-bottom:1px solid var(--border);padding:8px 16px;display:flex;align-items:center;gap:8px;flex-shrink:0;}
+    .btn-pag{background:var(--bg3);color:var(--text);padding:6px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);}
+    .btn-pag:disabled{opacity:0.4;cursor:default;}.btn-pag:not(:disabled):hover{background:var(--border);}
+    #btn-pagina-actual{background:var(--bg3);color:var(--text2);padding:6px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);font-size:12px;min-width:90px;text-align:center;}
+    .toolbar-sep{flex:1;}
+    #btn-nueva-obs{background:var(--accent);color:#fff;padding:7px 14px;border-radius:var(--radius-sm);font-weight:600;}
+    #btn-nueva-obs:hover{background:var(--accent2);}#btn-nueva-obs.activo{background:var(--danger);}
+    #btn-sincronizar{background:var(--bg3);color:var(--text);padding:7px 14px;border-radius:var(--radius-sm);border:1px solid var(--border);}
+    #btn-sincronizar:hover{background:var(--border);}
+    #contador-obs{font-size:12px;color:var(--text2);white-space:nowrap;}
+
+    .inspector-body{flex:1;overflow:hidden;position:relative;}
+
+    /* pdf-area: scroll nativo. El canvas crece con el zoom. */
+    #pdf-area{
+      width:100%;height:100%;
+      overflow:auto;
+      position:relative;
+      background:var(--bg);
+      cursor:grab;
+      user-select:none;
+    }
+    #pdf-area.panning{cursor:grabbing;}
+    #pdf-wrapper{position:relative;display:inline-block;}
+    #pdf-canvas{display:block;}
+    #marcadores-overlay{position:absolute;top:0;left:0;pointer-events:none;}
+    .pin{position:absolute;width:28px;height:28px;border-radius:50% 50% 50% 0;transform:translate(-50%,-100%) rotate(-45deg);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;cursor:pointer;pointer-events:all;transition:transform var(--trans);box-shadow:0 2px 8px rgba(0,0,0,0.4);}
+    .pin:hover{transform:translate(-50%,-110%) rotate(-45deg) scale(1.1);}
+    .pin-pendiente{background:var(--pin-pend);}.pin-resuelta{background:var(--pin-res);}
+    #pdf-spinner{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:13px;color:var(--text2);background:var(--bg2);padding:12px 20px;border-radius:var(--radius);border:1px solid var(--border);}
+
+    #panel-obs{position:absolute;right:0;top:0;bottom:0;width:320px;background:var(--bg2);border-left:1px solid var(--border);display:flex;flex-direction:column;transform:translateX(100%);transition:transform 0.3s ease;z-index:10;box-shadow:-4px 0 20px rgba(0,0,0,0.3);}
+    #panel-obs.abierto{transform:translateX(0);}
+    .panel-header{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+    .panel-header h3{font-size:14px;font-weight:700;}
+    .btn-cerrar-panel{background:var(--bg3);color:var(--text2);width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;border:1px solid var(--border);}
+    .panel-body{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px;}
+    .campo{display:flex;flex-direction:column;gap:5px;}
+    .campo label{font-size:11px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;}
+    .campo-foto{display:flex;flex-direction:column;gap:6px;}
+    #obs-foto-preview{width:100%;border-radius:var(--radius-sm);object-fit:cover;max-height:150px;border:1px solid var(--border);}
+    .btn-foto{background:var(--bg3);color:var(--text);padding:7px;border-radius:var(--radius-sm);border:1px solid var(--border);text-align:center;font-size:12px;}
+    .btn-foto:hover{background:var(--border);}
+    .panel-footer{padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:8px;flex-shrink:0;}
+    #btn-guardar-obs{flex:1;background:var(--accent);color:#fff;padding:9px;border-radius:var(--radius-sm);font-weight:600;}
+    #btn-guardar-obs:hover:not(:disabled){background:var(--accent2);}#btn-guardar-obs:disabled{opacity:0.5;cursor:default;}
+    #btn-eliminar-obs{background:var(--bg3);color:var(--danger);padding:9px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);}
+    #btn-eliminar-obs:hover{background:rgba(255,79,79,0.1);}
+    #panel-obs.modo-lectura select:disabled,#panel-obs.modo-lectura input:disabled,#panel-obs.modo-lectura textarea:disabled{opacity:0.75;cursor:default;background:var(--bg3);}
+
+    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px;}
+    .modal{background:var(--bg2);border:1px solid var(--border);border-radius:14px;width:480px;max-width:100%;max-height:80vh;display:flex;flex-direction:column;box-shadow:var(--shadow);}
+    .modal-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-shrink:0;}
+    .modal-header h3{font-size:15px;font-weight:700;}
+    .modal-body{flex:1;overflow-y:auto;padding:16px 20px;}
+    .btn-cerrar-modal{background:var(--bg3);color:var(--text2);width:28px;height:28px;border-radius:50%;font-size:16px;border:1px solid var(--border);}
+    .item-dropbox{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);gap:12px;}
+    .item-dropbox span{font-size:13px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .btn-seleccionar{background:var(--accent);color:#fff;padding:6px 12px;border-radius:var(--radius-sm);font-size:12px;flex-shrink:0;}
+    .dropbox-breadcrumb-bar{padding:8px 20px;background:var(--bg3);border-bottom:1px solid var(--border);font-size:11px;color:var(--text2);font-family:monospace;}
+    .item-carpeta{cursor:pointer;font-weight:500;}.item-carpeta:hover{background:var(--bg3);border-radius:var(--radius-sm);}
+    .item-arrow{color:var(--text2);font-size:18px;}
+    .item-volver{cursor:pointer;color:var(--accent2);font-weight:600;}.item-volver:hover{background:var(--bg3);border-radius:var(--radius-sm);}
+
+    .item-usuario{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border);gap:12px;}
+    .usuario-nombre{font-size:13px;font-weight:600;}.usuario-email{font-size:11px;color:var(--text2);margin-top:2px;}
+    .usuario-acciones{display:flex;align-items:center;gap:8px;flex-shrink:0;}
+    .btn-toggle-auth{padding:5px 10px;border-radius:var(--radius-sm);font-size:11px;font-weight:600;background:var(--bg3);color:var(--text2);border:1px solid var(--border);}
+    .btn-toggle-auth.activo{background:rgba(46,204,113,0.15);color:var(--success);border-color:var(--success);}
+
+    #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--bg3);color:var(--text);padding:10px 20px;border-radius:20px;border:1px solid var(--border);font-size:13px;opacity:0;transition:opacity 0.3s,transform 0.3s;z-index:200;}
+    #toast.visible{opacity:1;transform:translateX(-50%) translateY(0);}
+
+    @media(max-width:600px){
+      #panel-obs{width:100%;max-width:360px;}
+      .login-card{width:100%;padding:24px 20px;}
+      .user-texts{display:none;}
     }
   </style>
 </head>
 <body>
-
-  <!-- ══════════════════════════════════════════════════════════════════
-       PANTALLA: LOGIN
-  ══════════════════════════════════════════════════════════════════ -->
   <div id="pantalla-login" class="oculto">
     <div class="login-logo">
       <div class="login-logo-icon">🏗</div>
@@ -1969,37 +677,25 @@
     <div class="login-card">
       <h2>Iniciar sesión</h2>
       <p>Accedé con tu cuenta de Google. Si aún no estás registrado, el administrador deberá autorizarte.</p>
-      <button id="btn-login">
-        <span class="google-icon"></span>
-        Continuar con Google
-      </button>
+      <button id="btn-login"><span class="google-icon"></span>Continuar con Google</button>
     </div>
   </div>
 
-  <!-- ══════════════════════════════════════════════════════════════════
-       PANTALLA: ESPERA DE AUTORIZACIÓN
-  ══════════════════════════════════════════════════════════════════ -->
   <div id="pantalla-espera" class="oculto">
     <div class="espera-card">
       <div class="espera-icon">⏳</div>
       <h2>Acceso pendiente</h2>
-      <p>Tu cuenta fue registrada pero aún no fue autorizada por el administrador del proyecto.</p>
-      <p>Una vez que te autoricen, podés recargar esta página para ingresar.</p>
+      <p>Tu cuenta fue registrada pero aún no fue autorizada por el administrador.</p>
+      <p>Una vez que te autoricen, recargá la página para ingresar.</p>
       <button class="btn-logout btn-secondary" style="margin-top:8px">Cerrar sesión</button>
     </div>
   </div>
 
-  <!-- ══════════════════════════════════════════════════════════════════
-       PANTALLA: LISTA DE PLANOS
-  ══════════════════════════════════════════════════════════════════ -->
   <div id="pantalla-planos" class="oculto">
     <header class="header">
       <div class="header-marca">
         <div class="header-icono">🏗</div>
-        <div>
-          <div class="header-titulo">GC Inspector</div>
-          <div class="header-subtitulo">Catamarán 12</div>
-        </div>
+        <div><div class="header-titulo">GC Inspector</div><div class="header-subtitulo">Catamarán 12</div></div>
       </div>
       <div class="header-acciones">
         <button id="btn-usuarios" class="btn-secondary" style="display:none">👥 Usuarios</button>
@@ -2013,149 +709,72 @@
         <button class="btn-logout btn-secondary">Salir</button>
       </div>
     </header>
-
     <div class="planos-body">
       <div class="planos-header">
-        <div>
-          <h2>Planos de obra</h2>
-          <p>Seleccioná un plano para inspeccionar</p>
-        </div>
+        <div><h2>Planos de obra</h2><p>Seleccioná un plano para inspeccionar</p></div>
         <button id="btn-agregar-plano" class="btn-primary">+ Agregar plano</button>
       </div>
       <div id="lista-planos" class="lista-planos"></div>
     </div>
   </div>
 
-  <!-- Modal agregar plano -->
   <div id="modal-agregar-plano" class="modal-overlay oculto">
     <div class="modal">
-      <div class="modal-header">
-        <h3>Seleccionar plano de Dropbox</h3>
-        <button id="btn-cerrar-modal-plano" class="btn-cerrar-modal">✕</button>
-      </div>
-      <div class="dropbox-breadcrumb-bar">
-        <span id="dropbox-breadcrumb">m_Obra</span>
-      </div>
-      <div class="modal-body">
-        <div id="lista-dropbox"></div>
-      </div>
+      <div class="modal-header"><h3>Seleccionar plano de Dropbox</h3><button id="btn-cerrar-modal-plano" class="btn-cerrar-modal">✕</button></div>
+      <div class="dropbox-breadcrumb-bar"><span id="dropbox-breadcrumb">m_Obra</span></div>
+      <div class="modal-body"><div id="lista-dropbox"></div></div>
     </div>
   </div>
 
-  <!-- Modal usuarios -->
   <div id="modal-usuarios" class="modal-overlay oculto">
     <div class="modal">
-      <div class="modal-header">
-        <h3>Gestión de usuarios</h3>
-        <button id="btn-cerrar-modal-usuarios" class="btn-cerrar-modal">✕</button>
-      </div>
-      <div class="modal-body">
-        <div id="lista-usuarios"></div>
-      </div>
+      <div class="modal-header"><h3>Gestión de usuarios</h3><button id="btn-cerrar-modal-usuarios" class="btn-cerrar-modal">✕</button></div>
+      <div class="modal-body"><div id="lista-usuarios"></div></div>
     </div>
   </div>
 
-  <!-- ══════════════════════════════════════════════════════════════════
-       PANTALLA: INSPECTOR
-  ══════════════════════════════════════════════════════════════════ -->
   <div id="pantalla-inspector" class="oculto">
-
     <header class="inspector-header">
       <button id="btn-volver" class="btn-volver">← Volver</button>
-      <div class="inspector-titulo">
-        <h1 id="inspector-titulo">Plano</h1>
-        <span id="inspector-obra"></span>
-      </div>
+      <div class="inspector-titulo"><h1 id="inspector-titulo">Plano</h1><span id="inspector-obra"></span></div>
       <button class="btn-logout btn-secondary" style="font-size:12px;padding:6px 10px">Salir</button>
     </header>
-
     <div class="inspector-toolbar">
       <button id="btn-pag-anterior" class="btn-pag">‹</button>
       <button id="btn-pagina-actual" class="btn-pag">Página 1</button>
       <button id="btn-pag-siguiente" class="btn-pag">›</button>
       <div class="toolbar-sep"></div>
-      <button id="btn-zoom-out" class="btn-pag" title="Alejar">−</button>
+      <button id="btn-zoom-out" class="btn-pag">−</button>
       <button id="btn-zoom-nivel" class="btn-pag" style="min-width:48px">100%</button>
-      <button id="btn-zoom-in"  class="btn-pag" title="Acercar">+</button>
+      <button id="btn-zoom-in" class="btn-pag">+</button>
       <div class="toolbar-sep"></div>
       <span id="contador-obs"></span>
       <button id="btn-sincronizar">☁ Sincronizar</button>
       <button id="btn-nueva-obs">+ Nueva obs.</button>
     </div>
-
     <div class="inspector-body">
-      <div class="pdf-area">
+      <div id="pdf-area">
         <div id="pdf-wrapper">
           <canvas id="pdf-canvas"></canvas>
           <div id="marcadores-overlay"></div>
           <div id="pdf-spinner" class="oculto">Cargando plano...</div>
         </div>
       </div>
-
-      <!-- Panel lateral de observación -->
       <div id="panel-obs" class="oculto">
-        <div class="panel-header">
-          <h3 id="panel-titulo">Nueva observación</h3>
-          <button id="btn-cerrar-panel" class="btn-cerrar-panel">✕</button>
-        </div>
+        <div class="panel-header"><h3 id="panel-titulo">Nueva observación</h3><button id="btn-cerrar-panel" class="btn-cerrar-panel">✕</button></div>
         <div class="panel-body">
-          <input type="hidden" id="obs-x">
-          <input type="hidden" id="obs-y">
-
-          <div class="campo">
-            <label>Rubro *</label>
-            <select id="obs-rubro">
-              <option value="">— Seleccioná —</option>
-            </select>
-          </div>
-
-          <div class="campo">
-            <label>Responsable</label>
-            <select id="obs-responsable">
-              <option value="">— Seleccioná rubro primero —</option>
-            </select>
-          </div>
-
-          <div id="obs-responsable-otro" class="campo oculto">
-            <label>Especificá el responsable</label>
-            <input type="text" id="obs-responsable-otro-texto" placeholder="Nombre del responsable">
-          </div>
-
-          <div class="campo">
-            <label>Descripción *</label>
-            <textarea id="obs-descripcion" placeholder="Describí la observación..."></textarea>
-          </div>
-
-          <div class="campo">
-            <label>Severidad</label>
-            <select id="obs-severidad">
-              <option value="Baja">Baja</option>
-              <option value="Media" selected>Media</option>
-              <option value="Alta">Alta</option>
-              <option value="Crítica">Crítica</option>
-            </select>
-          </div>
-
-          <div id="obs-estado-grupo" class="campo oculto">
-            <label>Estado</label>
-            <select id="obs-estado">
-              <option value="Pendiente">Pendiente</option>
-              <option value="Resuelta">Resuelta</option>
-            </select>
-          </div>
-
-          <div id="obs-nota-grupo" class="campo oculto">
-            <label>Nota de resolución</label>
-            <textarea id="obs-nota" placeholder="Cómo se resolvió..."></textarea>
-          </div>
-
+          <input type="hidden" id="obs-x"><input type="hidden" id="obs-y">
+          <div class="campo"><label>Rubro *</label><select id="obs-rubro"><option value="">— Seleccioná —</option></select></div>
+          <div class="campo"><label>Responsable</label><select id="obs-responsable"><option value="">— Seleccioná rubro primero —</option></select></div>
+          <div id="obs-responsable-otro" class="campo oculto"><label>Especificá el responsable</label><input type="text" id="obs-responsable-otro-texto" placeholder="Nombre del responsable"></div>
+          <div class="campo"><label>Descripción *</label><textarea id="obs-descripcion" placeholder="Describí la observación..."></textarea></div>
+          <div class="campo"><label>Severidad</label><select id="obs-severidad"><option value="Baja">Baja</option><option value="Media" selected>Media</option><option value="Alta">Alta</option><option value="Crítica">Crítica</option></select></div>
+          <div id="obs-estado-grupo" class="campo oculto"><label>Estado</label><select id="obs-estado"><option value="Pendiente">Pendiente</option><option value="Resuelta">Resuelta</option></select></div>
+          <div id="obs-nota-grupo" class="campo oculto"><label>Nota de resolución</label><textarea id="obs-nota" placeholder="Cómo se resolvió..."></textarea></div>
           <div class="campo-foto">
             <label class="campo"><span style="font-size:11px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Foto</span></label>
             <img id="obs-foto-preview" class="oculto" alt="preview">
-            <label class="btn-foto">
-              📷 Adjuntar foto
-              <input type="file" id="obs-foto" accept="image/*" capture="environment" style="display:none">
-            </label>
+            <label class="btn-foto">📷 Adjuntar foto<input type="file" id="obs-foto" accept="image/*" capture="environment" style="display:none"></label>
           </div>
         </div>
         <div class="panel-footer">
@@ -2166,27 +785,6 @@
     </div>
   </div>
 
-  <!-- Toast -->
   <div id="toast" class="oculto"></div>
-
-  <script>
-    // Mostrar botón de usuarios solo si es admin
-    // (se actualiza después del login en el módulo)
-    document.addEventListener('DOMContentLoaded', () => {
-      // El módulo ES maneja todo; este script es solo fallback
-    });
-  </script>
-
-  <!-- Mostrar botón usuarios para admins -->
-  <script type="module">
-    import { getFirestore, doc, getDoc, onSnapshot }
-      from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
-    // El check de admin se hace en el módulo principal via currentUserData.rol
-    // Este listener adicional actualiza el botón en la pantalla de planos
-    document.getElementById('btn-usuarios') && (() => {
-      // Se muestra desde el módulo principal cuando rol === 'admin'
-    })();
-  </script>
-
 </body>
 </html>
