@@ -521,6 +521,75 @@
       if (pdfDoc) await renderizarPagina(currentPagina);
     });
 
+    // ─── ZOOM CON SCROLL ─────────────────────────────────────────────────────
+    document.getElementById('pdf-area').addEventListener('wheel', async (e) => {
+      if (!pdfDoc) return;
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? -0.25 : 0.25;
+        const nuevo = Math.min(4, Math.max(0.5, zoomLevel + delta));
+        if (nuevo === zoomLevel) return;
+        zoomLevel = nuevo;
+        await renderizarPagina(currentPagina);
+      }
+    }, { passive: false });
+
+    // ─── PAN CON DRAG ─────────────────────────────────────────────────────────
+    const pdfArea = document.getElementById('pdf-area');
+    let isPanning = false;
+    let panStart  = { x: 0, y: 0 };
+    let scrollStart = { x: 0, y: 0 };
+
+    pdfArea.addEventListener('mousedown', (e) => {
+      if (modoEdicion) return;
+      if (e.target.classList.contains('pin')) return;
+      if (e.button !== 0) return;
+      isPanning   = true;
+      panStart    = { x: e.clientX, y: e.clientY };
+      scrollStart = { x: pdfArea.scrollLeft, y: pdfArea.scrollTop };
+      pdfArea.classList.add('panning');
+      e.preventDefault();
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isPanning) return;
+      const dx = e.clientX - panStart.x;
+      const dy = e.clientY - panStart.y;
+      pdfArea.scrollLeft = scrollStart.x - dx;
+      pdfArea.scrollTop  = scrollStart.y - dy;
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (!isPanning) return;
+      isPanning = false;
+      pdfArea.classList.remove('panning');
+    });
+
+    // Touch pan para mobile
+    let touchStart = null;
+    let touchScrollStart = null;
+
+    pdfArea.addEventListener('touchstart', (e) => {
+      if (modoEdicion) return;
+      if (e.touches.length === 1) {
+        touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        touchScrollStart = { x: pdfArea.scrollLeft, y: pdfArea.scrollTop };
+      }
+    }, { passive: true });
+
+    pdfArea.addEventListener('touchmove', (e) => {
+      if (!touchStart || modoEdicion) return;
+      if (e.touches.length === 1) {
+        const dx = e.touches[0].clientX - touchStart.x;
+        const dy = e.touches[0].clientY - touchStart.y;
+        pdfArea.scrollLeft = touchScrollStart.x - dx;
+        pdfArea.scrollTop  = touchScrollStart.y - dy;
+        e.preventDefault();
+      }
+    }, { passive: false });
+
+    pdfArea.addEventListener('touchend', () => { touchStart = null; });
+
     // Volver a planos
     document.getElementById('btn-volver').addEventListener('click', () => {
       if (obsUnsubscribe) { obsUnsubscribe(); obsUnsubscribe = null; }
@@ -575,6 +644,7 @@
     function activarModoEdicion() {
       modoEdicion = true;
       document.getElementById('pdf-wrapper').classList.add('modo-edicion');
+      document.getElementById('pdf-area').classList.add('modo-edicion-activo');
       document.getElementById('btn-nueva-obs').textContent = '✕ Cancelar';
       document.getElementById('btn-nueva-obs').classList.add('activo');
     }
@@ -582,6 +652,7 @@
     function desactivarModoEdicion() {
       modoEdicion = false;
       document.getElementById('pdf-wrapper').classList.remove('modo-edicion');
+      document.getElementById('pdf-area').classList.remove('modo-edicion-activo');
       document.getElementById('btn-nueva-obs').textContent = '+ Nueva obs.';
       document.getElementById('btn-nueva-obs').classList.remove('activo');
     }
@@ -1423,6 +1494,11 @@
       overflow: auto;
       position: relative;
       background: var(--bg);
+      cursor: grab;
+    }
+
+    .pdf-area.panning {
+      cursor: grabbing;
     }
 
     #pdf-wrapper {
@@ -1431,8 +1507,9 @@
       min-width: 100%;
     }
 
-    #pdf-wrapper.modo-edicion {
-      cursor: crosshair;
+    #pdf-wrapper.modo-edicion,
+    .pdf-area.modo-edicion-activo {
+      cursor: crosshair !important;
     }
 
     #pdf-canvas {
