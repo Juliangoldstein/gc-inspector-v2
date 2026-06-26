@@ -484,7 +484,7 @@
         }
         fotoInput.dataset.eliminada = '';
         if(obsSeleccionada){
-          const data={rubro,responsable,descripcion,severidad,estado,notaResolucion:nota,fotoUrl,actualizadoEn:serverTimestamp()};
+          const data={rubro,responsable,descripcion,severidad,estado,notaResolucion:nota,fotoUrl,actualizadoEn:serverTimestamp(),sincronizadoSheet:false};
           if(estado==='Resuelta'&&observaciones[obsSeleccionada]?.estado!=='Resuelta')data.resueltaEn=serverTimestamp();
           await updateDoc(doc(db,'observaciones',obsSeleccionada),data);
         } else {
