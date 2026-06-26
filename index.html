@@ -13,7 +13,7 @@
     import { getAuth, signInWithPopup, signOut, GoogleAuthProvider, onAuthStateChanged }
       from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
     import { getFirestore, collection, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc,
-      query, where, orderBy, onSnapshot, serverTimestamp, getDocs }
+      query, where, orderBy, onSnapshot, serverTimestamp, getDocs, runTransaction }
       from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
     import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject }
       from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
@@ -607,6 +607,20 @@
       document.getElementById('obs-foto').dataset.eliminada = 'true';
     });
 
+    // Contador global atómico en Firestore — garantiza IDs únicos entre todos los planos y usuarios
+    async function obtenerSiguienteNumeroGlobal() {
+      const contadorRef = doc(db, 'contadores', 'observaciones');
+      let numero;
+      await runTransaction(db, async (transaction) => {
+        const snap = await transaction.get(contadorRef);
+        const actual = snap.exists() ? (snap.data().ultimo || 0) : 0;
+        const siguiente = actual + 1;
+        transaction.set(contadorRef, { ultimo: siguiente }, { merge: true });
+        numero = `OBS-${siguiente.toString().padStart(3, '0')}`;
+      });
+      return numero;
+    }
+
     document.getElementById('btn-guardar-obs').addEventListener('click', async ()=>{
       const est = pestañaActual(); if (!est) return;
       const rubro=document.getElementById('obs-rubro').value;
@@ -638,8 +652,7 @@
           if(estado==='Resuelta'&&est.observaciones[est.obsSeleccionada]?.estado!=='Resuelta')data.resueltaEn=serverTimestamp();
           await updateDoc(doc(db,'observaciones',est.obsSeleccionada),data);
         } else {
-          const nums=(await getDocs(query(collection(db,'observaciones'),where('planoId','==',est.plano.id)))).docs.map(d=>{const m=(d.data().numero||'').match(/(\d+)$/);return m?parseInt(m[1]):0;});
-          const numero=`OBS-${(Math.max(0,...nums)+1).toString().padStart(3,'0')}`;
+          const numero = await obtenerSiguienteNumeroGlobal();
           await addDoc(collection(db,'observaciones'),{planoId:est.plano.id,numero,pagina:est.pagina,x,y,rubro,responsable,descripcion,severidad,estado:'Pendiente',notaResolucion:'',fotoUrl,creadoPor:currentUser.uid,creadoEn:serverTimestamp(),resueltaEn:null,sincronizadoSheet:false});
         }
         cerrarPanel();
