@@ -189,15 +189,19 @@
       return dropboxToken;
     }
 
-    async function listarPDFs() {
+    async function listarCarpeta(path) {
       const token = await getDropboxToken();
       const res = await fetch('https://api.dropboxapi.com/2/files/list_folder', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: DROPBOX_FOLDER, recursive: false })
+        body: JSON.stringify({ path, recursive: false })
       });
       const data = await res.json();
-      return (data.entries || []).filter(e => e.name.toLowerCase().endsWith('.pdf'));
+      const entries = data.entries || [];
+      // Carpetas primero, luego PDFs, resto ignorado
+      const carpetas = entries.filter(e => e['.tag'] === 'folder').sort((a,b) => a.name.localeCompare(b.name));
+      const pdfs     = entries.filter(e => e['.tag'] === 'file' && e.name.toLowerCase().endsWith('.pdf')).sort((a,b) => a.name.localeCompare(b.name));
+      return { carpetas, pdfs };
     }
 
     async function descargarPDF(path) {
@@ -286,7 +290,12 @@
     }
 
     // Agregar plano
+    let dropboxNavPath = DROPBOX_FOLDER;
+    let dropboxNavStack = []; // historial de paths para volver atrás
+
     document.getElementById('btn-agregar-plano').addEventListener('click', () => {
+      dropboxNavPath  = DROPBOX_FOLDER;
+      dropboxNavStack = [];
       mostrarModalAgregarPlano();
     });
 
@@ -294,16 +303,41 @@
       const modal = document.getElementById('modal-agregar-plano');
       const lista  = document.getElementById('lista-dropbox');
       modal.classList.remove('oculto');
-      lista.innerHTML = '<div class="loading">Cargando archivos de Dropbox...</div>';
+      lista.innerHTML = '<div class="loading">Cargando...</div>';
+      actualizarBreadcrumb();
 
       try {
-        const archivos = await listarPDFs();
-        if (archivos.length === 0) {
-          lista.innerHTML = '<p>No se encontraron PDFs en la carpeta de Dropbox.</p>';
-          return;
-        }
+        const { carpetas, pdfs } = await listarCarpeta(dropboxNavPath);
+
         lista.innerHTML = '';
-        archivos.forEach(archivo => {
+
+        // Botón volver
+        if (dropboxNavStack.length > 0) {
+          const btnVolver = document.createElement('div');
+          btnVolver.className = 'item-dropbox item-volver';
+          btnVolver.innerHTML = `<span>← Volver</span>`;
+          btnVolver.addEventListener('click', () => {
+            dropboxNavPath = dropboxNavStack.pop();
+            mostrarModalAgregarPlano();
+          });
+          lista.appendChild(btnVolver);
+        }
+
+        // Carpetas
+        carpetas.forEach(carpeta => {
+          const div = document.createElement('div');
+          div.className = 'item-dropbox item-carpeta';
+          div.innerHTML = `<span>📁 ${carpeta.name}</span><span class="item-arrow">›</span>`;
+          div.addEventListener('click', () => {
+            dropboxNavStack.push(dropboxNavPath);
+            dropboxNavPath = carpeta.path_lower;
+            mostrarModalAgregarPlano();
+          });
+          lista.appendChild(div);
+        });
+
+        // PDFs
+        pdfs.forEach(archivo => {
           const div = document.createElement('div');
           div.className = 'item-dropbox';
           div.innerHTML = `<span>📄 ${archivo.name}</span><button class="btn-seleccionar">Seleccionar</button>`;
@@ -313,10 +347,23 @@
           });
           lista.appendChild(div);
         });
+
+        if (carpetas.length === 0 && pdfs.length === 0) {
+          lista.innerHTML += '<p style="color:var(--text2);padding:12px 0">Carpeta vacía</p>';
+        }
+
       } catch (e) {
-        lista.innerHTML = '<p>Error al conectar con Dropbox.</p>';
+        lista.innerHTML = '<p style="color:var(--danger)">Error al conectar con Dropbox.</p>';
         console.error(e);
       }
+    }
+
+    function actualizarBreadcrumb() {
+      const bc = document.getElementById('dropbox-breadcrumb');
+      if (!bc) return;
+      const relativo = dropboxNavPath.replace(DROPBOX_FOLDER, '') || '/';
+      const partes   = relativo.split('/').filter(Boolean);
+      bc.textContent = partes.length ? '/ ' + partes.join(' / ') : 'm_Obra';
     }
 
     document.getElementById('btn-cerrar-modal-plano').addEventListener('click', () => {
@@ -1602,6 +1649,41 @@
       flex-shrink: 0;
     }
 
+    .dropbox-breadcrumb-bar {
+      padding: 8px 20px;
+      background: var(--bg3);
+      border-bottom: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--text2);
+      font-family: monospace;
+    }
+
+    .item-carpeta {
+      cursor: pointer;
+      font-weight: 500;
+    }
+
+    .item-carpeta:hover {
+      background: var(--bg3);
+      border-radius: var(--radius-sm);
+    }
+
+    .item-arrow {
+      color: var(--text2);
+      font-size: 18px;
+    }
+
+    .item-volver {
+      cursor: pointer;
+      color: var(--accent2);
+      font-weight: 600;
+    }
+
+    .item-volver:hover {
+      background: var(--bg3);
+      border-radius: var(--radius-sm);
+    }
+
     /* ─── USUARIOS ──────────────────────────────────────────────────── */
     .item-usuario {
       display: flex;
@@ -1760,6 +1842,9 @@
       <div class="modal-header">
         <h3>Seleccionar plano de Dropbox</h3>
         <button id="btn-cerrar-modal-plano" class="btn-cerrar-modal">✕</button>
+      </div>
+      <div class="dropbox-breadcrumb-bar">
+        <span id="dropbox-breadcrumb">m_Obra</span>
       </div>
       <div class="modal-body">
         <div id="lista-dropbox"></div>
