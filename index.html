@@ -396,7 +396,9 @@
       currentPlano  = plano;
       currentPagina = 1;
       observaciones = {};
-      zoomLevel     = 1.0;
+      pdfEscala  = 1.0;
+      pdfOffsetX = 0;
+      pdfOffsetY = 0;
       mostrar('inspector');
 
       document.getElementById('inspector-titulo').textContent = plano.nombre;
@@ -572,7 +574,6 @@
     const pdfArea = document.getElementById('pdf-area');
     let isPanning = false;
     let panStart  = { x: 0, y: 0 };
-    let panOffset = { x: 0, y: 0 };
     let didPan    = false;
 
     pdfArea.addEventListener('mousedown', (e) => {
