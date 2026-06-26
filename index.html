@@ -402,6 +402,7 @@
       document.getElementById('obs-nota').value=obs.notaResolucion||'';
       document.getElementById('obs-foto-preview').src=obs.fotoUrl||'';
       document.getElementById('obs-foto-preview').classList.toggle('oculto',!obs.fotoUrl);
+      document.getElementById('btn-eliminar-foto').classList.toggle('oculto',!obs.fotoUrl);
       document.getElementById('obs-estado-grupo').classList.remove('oculto');
       document.getElementById('obs-nota-grupo').classList.toggle('oculto',obs.estado!=='Resuelta');
       if (esLector) {
@@ -429,6 +430,7 @@
       document.getElementById('obs-descripcion').value=''; document.getElementById('obs-severidad').value='Media';
       document.getElementById('obs-estado').value='Pendiente'; document.getElementById('obs-nota').value='';
       document.getElementById('obs-foto-preview').src=''; document.getElementById('obs-foto-preview').classList.add('oculto');
+      document.getElementById('btn-eliminar-foto').classList.add('oculto');
       document.getElementById('obs-foto').value=''; document.getElementById('obs-x').value=''; document.getElementById('obs-y').value='';
       document.getElementById('obs-responsable-otro').classList.add('oculto');
     }
@@ -444,7 +446,16 @@
     }
     document.getElementById('obs-responsable').addEventListener('change', ()=>{ document.getElementById('obs-responsable-otro').classList.toggle('oculto',document.getElementById('obs-responsable').value!=='Otro'); });
     document.getElementById('obs-estado').addEventListener('change', ()=>{ document.getElementById('obs-nota-grupo').classList.toggle('oculto',document.getElementById('obs-estado').value!=='Resuelta'); });
-    document.getElementById('obs-foto').addEventListener('change', e=>{ const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{document.getElementById('obs-foto-preview').src=ev.target.result;document.getElementById('obs-foto-preview').classList.remove('oculto');};r.readAsDataURL(f); });
+    document.getElementById('obs-foto').addEventListener('change', e=>{ const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{document.getElementById('obs-foto-preview').src=ev.target.result;document.getElementById('obs-foto-preview').classList.remove('oculto');document.getElementById('btn-eliminar-foto').classList.remove('oculto');};r.readAsDataURL(f); });
+
+    document.getElementById('btn-eliminar-foto').addEventListener('click', () => {
+      // Marcar foto para eliminar — se borra al guardar
+      document.getElementById('obs-foto-preview').src = '';
+      document.getElementById('obs-foto-preview').classList.add('oculto');
+      document.getElementById('btn-eliminar-foto').classList.add('oculto');
+      document.getElementById('obs-foto').value = '';
+      document.getElementById('obs-foto').dataset.eliminada = 'true';
+    });
 
     document.getElementById('btn-guardar-obs').addEventListener('click', async ()=>{
       const rubro=document.getElementById('obs-rubro').value;
@@ -458,9 +469,20 @@
       if(!rubro||!descripcion){alert('Completá al menos el rubro y la descripción.');return;}
       const btn=document.getElementById('btn-guardar-obs');btn.disabled=true;btn.textContent='Guardando...';
       try {
-        let fotoUrl=obsSeleccionada?(observaciones[obsSeleccionada]?.fotoUrl||''):'';
-        const fotoFile=document.getElementById('obs-foto').files[0];
-        if(fotoFile){const fotoRef=ref(storage,`fotos/${currentPlano.id}/${Date.now()}_${fotoFile.name}`);await uploadBytes(fotoRef,fotoFile);fotoUrl=await getDownloadURL(fotoRef);}
+        const fotoInput = document.getElementById('obs-foto');
+        const fotoEliminada = fotoInput.dataset.eliminada === 'true';
+        let fotoUrl = obsSeleccionada ? (observaciones[obsSeleccionada]?.fotoUrl||'') : '';
+        const fotoFile = fotoInput.files[0];
+        if (fotoFile) {
+          const fotoRef = ref(storage,`fotos/${currentPlano.id}/${Date.now()}_${fotoFile.name}`);
+          await uploadBytes(fotoRef, fotoFile);
+          fotoUrl = await getDownloadURL(fotoRef);
+        } else if (fotoEliminada) {
+          // Borrar foto anterior de Storage si existía
+          if (fotoUrl) { try { await deleteObject(ref(storage, fotoUrl)); } catch(e) {} }
+          fotoUrl = '';
+        }
+        fotoInput.dataset.eliminada = '';
         if(obsSeleccionada){
           const data={rubro,responsable,descripcion,severidad,estado,notaResolucion:nota,fotoUrl,actualizadoEn:serverTimestamp()};
           if(estado==='Resuelta'&&observaciones[obsSeleccionada]?.estado!=='Resuelta')data.resueltaEn=serverTimestamp();
@@ -635,6 +657,8 @@
     #btn-guardar-obs:hover:not(:disabled){background:var(--accent2);}#btn-guardar-obs:disabled{opacity:0.5;cursor:default;}
     #btn-eliminar-obs{background:var(--bg3);color:var(--danger);padding:9px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);}
     #btn-eliminar-obs:hover{background:rgba(255,79,79,0.1);}
+    .btn-eliminar-foto{background:transparent;color:var(--danger);padding:6px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);font-size:12px;text-align:center;width:100%;}
+    .btn-eliminar-foto:hover{background:rgba(255,79,79,0.1);border-color:var(--danger);}
     #panel-obs.modo-lectura select:disabled,#panel-obs.modo-lectura input:disabled,#panel-obs.modo-lectura textarea:disabled{opacity:0.75;cursor:default;background:var(--bg3);}
 
     .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px;}
@@ -775,6 +799,7 @@
             <label class="campo"><span style="font-size:11px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Foto</span></label>
             <img id="obs-foto-preview" class="oculto" alt="preview">
             <label class="btn-foto">📷 Adjuntar foto<input type="file" id="obs-foto" accept="image/*" capture="environment" style="display:none"></label>
+            <button id="btn-eliminar-foto" class="btn-eliminar-foto oculto">🗑 Eliminar foto</button>
           </div>
         </div>
         <div class="panel-footer">
