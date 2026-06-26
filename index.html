@@ -90,6 +90,7 @@
     let modoEdicion     = false;  // true = colocando marcador
     let obsSeleccionada = null;
     let planosUnsubscribe = null;
+    let zoomLevel       = 1.0;    // 1.0 = ajustar al ancho, >1 = zoom in
 
     pdfjsLib.GlobalWorkerOptions.workerSrc =
       'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -395,6 +396,7 @@
       currentPlano  = plano;
       currentPagina = 1;
       observaciones = {};
+      zoomLevel     = 1.0;
       mostrar('inspector');
 
       document.getElementById('inspector-titulo').textContent = plano.nombre;
@@ -461,10 +463,10 @@
       const wrapper = document.getElementById('pdf-wrapper');
       const ctx     = canvas.getContext('2d');
 
-      const viewport = page.getViewport({ scale: 1 });
-      const scale    = wrapper.clientWidth / viewport.width;
-      pdfScale       = scale;
-      const vp       = page.getViewport({ scale });
+      const viewport  = page.getViewport({ scale: 1 });
+      const baseScale = wrapper.clientWidth / viewport.width;
+      pdfScale        = baseScale * zoomLevel;
+      const vp        = page.getViewport({ scale: pdfScale });
 
       canvas.width  = vp.width;
       canvas.height = vp.height;
@@ -473,6 +475,8 @@
       renderizarMarcadores();
       document.getElementById('btn-pagina-actual').textContent =
         `Página ${currentPagina} / ${pdfDoc.numPages}`;
+      document.getElementById('btn-zoom-nivel').textContent =
+        Math.round(zoomLevel * 100) + '%';
     }
 
     function actualizarNavegacionPaginas() {
@@ -496,6 +500,25 @@
         await renderizarPagina(currentPagina);
         actualizarNavegacionPaginas();
       }
+    });
+
+    // Zoom
+    document.getElementById('btn-zoom-in').addEventListener('click', async () => {
+      if (zoomLevel >= 4) return;
+      zoomLevel = Math.min(4, zoomLevel + 0.25);
+      if (pdfDoc) await renderizarPagina(currentPagina);
+    });
+
+    document.getElementById('btn-zoom-out').addEventListener('click', async () => {
+      if (zoomLevel <= 0.5) return;
+      zoomLevel = Math.max(0.5, zoomLevel - 0.25);
+      if (pdfDoc) await renderizarPagina(currentPagina);
+    });
+
+    document.getElementById('btn-zoom-nivel').addEventListener('click', async () => {
+      // Reset zoom a 100%
+      zoomLevel = 1.0;
+      if (pdfDoc) await renderizarPagina(currentPagina);
     });
 
     // Volver a planos
@@ -1900,6 +1923,10 @@
       <button id="btn-pag-anterior" class="btn-pag">‹</button>
       <button id="btn-pagina-actual" class="btn-pag">Página 1</button>
       <button id="btn-pag-siguiente" class="btn-pag">›</button>
+      <div class="toolbar-sep"></div>
+      <button id="btn-zoom-out" class="btn-pag" title="Alejar">−</button>
+      <button id="btn-zoom-nivel" class="btn-pag" style="min-width:48px">100%</button>
+      <button id="btn-zoom-in"  class="btn-pag" title="Acercar">+</button>
       <div class="toolbar-sep"></div>
       <span id="contador-obs"></span>
       <button id="btn-sincronizar">☁ Sincronizar</button>
