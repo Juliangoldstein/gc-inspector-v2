@@ -206,14 +206,20 @@
 
     async function descargarPDF(path) {
       const token = await getDropboxToken();
-      const res = await fetch('https://content.dropboxapi.com/2/files/download', {
+      // Obtener link temporal (evita CORS del endpoint de descarga directa)
+      const res = await fetch('https://api.dropboxapi.com/2/files/get_temporary_link', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Dropbox-API-Arg': JSON.stringify({ path }),
-        }
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ path }),
       });
-      return await res.arrayBuffer();
+      const data = await res.json();
+      if (!data.link) throw new Error('No se pudo obtener link temporal de Dropbox');
+      // Descargar desde el link temporal (sin CORS)
+      const pdfRes = await fetch(data.link);
+      return await pdfRes.arrayBuffer();
     }
 
     // ─── PANTALLA PLANOS ──────────────────────────────────────────────────────
