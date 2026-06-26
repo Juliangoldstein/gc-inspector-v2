@@ -54,24 +54,39 @@
     const storage = getStorage(app);
     const provider = new GoogleAuthProvider();
 
-    let currentUser = null, currentUserData = null, currentPlano = null;
-    let currentPagina = 1, pdfDoc = null;
-    let observaciones = {}, obsUnsubscribe = null, planosUnsubscribe = null;
-    let dropboxToken = null, modoEdicion = false, obsSeleccionada = null;
+    let currentUser = null, currentUserData = null;
+    let planosUnsubscribe = null;
+    let dropboxToken = null;
 
-    // ── ZOOM/PAN ──────────────────────────────────────────────────────────────
-    // El zoom funciona re-renderizando el PDF con mayor escala.
-    // pdfBaseScale = escala para ajustar al ancho del área (100%)
-    // pdfZoom      = factor multiplicador del usuario (1 = 100%)
-    // El pan usa scroll nativo del div pdf-area (overflow: auto)
-    let pdfBaseScale = 1;
-    let pdfZoom      = 1;
+    // ── SISTEMA DE PESTAÑAS ───────────────────────────────────────────────────
+    // Cada pestaña mantiene su propio estado independiente.
+    const MAX_PESTAÑAS = 8;
+
+    // pestañas: Map de planoId → { plano, pdfDoc, pagina, zoom, baseScale,
+    //           observaciones, obsUnsubscribe, modoEdicion, obsSeleccionada,
+    //           scrollX, scrollY }
+    const pestañas = new Map();
+    let pestañaActiva = null; // planoId de la pestaña visible
+
+    function estadoPestaña(planoId) {
+      return pestañas.get(planoId);
+    }
+
+    function pestañaActual() {
+      return pestañas.get(pestañaActiva);
+    }
 
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
     // ─── PANTALLAS ────────────────────────────────────────────────────────────
     const pantallas = { login: document.getElementById('pantalla-login'), espera: document.getElementById('pantalla-espera'), planos: document.getElementById('pantalla-planos'), inspector: document.getElementById('pantalla-inspector') };
-    function mostrar(n) { Object.values(pantallas).forEach(p => p.classList.add('oculto')); pantallas[n].classList.remove('oculto'); }
+    function mostrar(n) {
+      Object.values(pantallas).forEach(p => p.classList.add('oculto'));
+      pantallas[n].classList.remove('oculto');
+      // Si hay pestañas abiertas, mostrar botón para volver al inspector
+      const btnVolver = document.getElementById('btn-volver-inspector');
+      if (btnVolver) btnVolver.classList.toggle('oculto', pestañas.size === 0 || n !== 'planos');
+    }
 
     // ─── AUTH ─────────────────────────────────────────────────────────────────
     onAuthStateChanged(auth, async (user) => {
@@ -96,7 +111,10 @@
       try { await signInWithPopup(auth, provider); } catch (e) { console.error(e); alert('Error al iniciar sesión.'); }
     });
     document.querySelectorAll('.btn-logout').forEach(btn => btn.addEventListener('click', async () => {
-      if (obsUnsubscribe) obsUnsubscribe();
+      // Cerrar todas las suscripciones de pestañas
+      pestañas.forEach(est => { if (est.obsUnsubscribe) est.obsUnsubscribe(); });
+      pestañas.clear();
+      pestañaActiva = null;
       if (planosUnsubscribe) planosUnsubscribe();
       await signOut(auth);
     }));
@@ -185,87 +203,202 @@
       abrirPlano({ id: docRef.id, nombre, dropboxPath: archivo.path_lower, paginas: 1 });
     }
 
-    // ─── INSPECTOR ────────────────────────────────────────────────────────────
+    // ─── INSPECTOR — SISTEMA DE PESTAÑAS ──────────────────────────────────────
+
     async function abrirPlano(plano) {
-      currentPlano = plano; currentPagina = 1; observaciones = {};
-      pdfZoom = 1; pdfBaseScale = 1;
+      // Si ya está abierta, solo activarla
+      if (pestañas.has(plano.id)) {
+        activarPestaña(plano.id);
+        return;
+      }
+
+      // Límite de pestañas
+      if (pestañas.size >= MAX_PESTAÑAS) {
+        alert(`Máximo ${MAX_PESTAÑAS} planos abiertos simultáneamente. Cerrá alguno antes de abrir otro.`);
+        return;
+      }
+
+      // Crear estado para la nueva pestaña
+      const estado = {
+        plano,
+        pdfDoc:          null,
+        pagina:          1,
+        zoom:            1,
+        baseScale:       1,
+        observaciones:   {},
+        obsUnsubscribe:  null,
+        modoEdicion:     false,
+        obsSeleccionada: null,
+        scrollX:         0,
+        scrollY:         0,
+      };
+      pestañas.set(plano.id, estado);
+
+      // Suscribir a observaciones en tiempo real
+      estado.obsUnsubscribe = onSnapshot(
+        query(collection(db,'observaciones'), where('planoId','==',plano.id), orderBy('creadoEn','asc')),
+        snap => {
+          snap.docChanges().forEach(ch => {
+            if (ch.type==='removed') delete estado.observaciones[ch.doc.id];
+            else estado.observaciones[ch.doc.id] = { id: ch.doc.id, ...ch.doc.data() };
+          });
+          if (pestañaActiva === plano.id) { renderizarMarcadores(); actualizarContadorObs(); }
+        }
+      );
+
       mostrar('inspector');
-      document.getElementById('inspector-titulo').textContent = plano.nombre;
-      document.getElementById('inspector-obra').textContent   = OBRA_NOMBRE;
-      document.getElementById('btn-pagina-actual').textContent = `Página ${currentPagina}`;
-      const esLector = currentUserData?.rol === 'lector';
-      document.getElementById('btn-nueva-obs').classList.toggle('oculto', esLector);
-      document.getElementById('btn-sincronizar').classList.toggle('oculto', esLector);
-      if (obsUnsubscribe) obsUnsubscribe();
-      obsUnsubscribe = onSnapshot(query(collection(db,'observaciones'), where('planoId','==',plano.id), orderBy('creadoEn','asc')), snap => {
-        snap.docChanges().forEach(ch => { if (ch.type==='removed') delete observaciones[ch.doc.id]; else observaciones[ch.doc.id]={id:ch.doc.id,...ch.doc.data()}; });
-        renderizarMarcadores(); actualizarContadorObs();
-      });
-      await cargarPDF(plano.dropboxPath);
+      renderizarPestañas();
+      await activarPestaña(plano.id);
     }
 
-    async function cargarPDF(path) {
+    async function activarPestaña(planoId) {
+      // Guardar scroll de la pestaña actual antes de cambiar
+      if (pestañaActiva && pestañas.has(pestañaActiva)) {
+        const area = document.getElementById('pdf-area');
+        const est  = pestañas.get(pestañaActiva);
+        est.scrollX = area.scrollLeft;
+        est.scrollY = area.scrollTop;
+      }
+
+      pestañaActiva = planoId;
+      const estado  = pestañas.get(planoId);
+      mostrar('inspector');
+      renderizarPestañas();
+      actualizarToolbar(estado);
+
+      // Si el PDF ya está cargado, restaurar estado
+      if (estado.pdfDoc) {
+        await renderizarPagina(estado, estado.pagina, false);
+        // Restaurar scroll
+        setTimeout(() => {
+          const area = document.getElementById('pdf-area');
+          area.scrollLeft = estado.scrollX;
+          area.scrollTop  = estado.scrollY;
+        }, 50);
+      } else {
+        // Cargar PDF por primera vez
+        await cargarPDF(estado);
+      }
+    }
+
+    function cerrarPestaña(planoId) {
+      const estado = pestañas.get(planoId);
+      if (estado?.obsUnsubscribe) estado.obsUnsubscribe();
+      pestañas.delete(planoId);
+
+      if (pestañas.size === 0) {
+        pestañaActiva = null;
+        mostrar('planos');
+        return;
+      }
+
+      // Activar la primera pestaña disponible
+      const siguiente = pestañas.keys().next().value;
+      activarPestaña(siguiente);
+    }
+
+    function renderizarPestañas() {
+      const contenedor = document.getElementById('pestañas-container');
+      contenedor.innerHTML = '';
+      pestañas.forEach((estado, planoId) => {
+        const tab = document.createElement('div');
+        tab.className = `pestaña ${planoId === pestañaActiva ? 'activa' : ''}`;
+        tab.innerHTML = `
+          <span class="pestaña-nombre">${estado.plano.nombre}</span>
+          <button class="pestaña-cerrar" data-id="${planoId}">✕</button>
+        `;
+        tab.addEventListener('click', (e) => {
+          if (e.target.classList.contains('pestaña-cerrar')) return;
+          activarPestaña(planoId);
+        });
+        tab.querySelector('.pestaña-cerrar').addEventListener('click', (e) => {
+          e.stopPropagation();
+          cerrarPestaña(planoId);
+        });
+        contenedor.appendChild(tab);
+      });
+    }
+
+    function actualizarToolbar(estado) {
+      const esLector = currentUserData?.rol === 'lector';
+      document.getElementById('inspector-titulo').textContent  = estado.plano.nombre;
+      document.getElementById('inspector-obra').textContent    = OBRA_NOMBRE;
+      document.getElementById('btn-pagina-actual').textContent = `Página ${estado.pagina}`;
+      document.getElementById('btn-nueva-obs').classList.toggle('oculto', esLector);
+      document.getElementById('btn-sincronizar').classList.toggle('oculto', esLector);
+      document.getElementById('btn-zoom-nivel').textContent    = Math.round(estado.zoom * 100) + '%';
+      actualizarNavegacionPaginas(estado);
+      actualizarContadorObs();
+    }
+
+    async function cargarPDF(estado) {
       const spinner = document.getElementById('pdf-spinner');
       spinner.classList.remove('oculto');
       try {
-        pdfDoc = await pdfjsLib.getDocument({ data: await descargarPDF(path) }).promise;
-        if (pdfDoc.numPages !== currentPlano.paginas) {
-          await updateDoc(doc(db,'planos',currentPlano.id), { paginas: pdfDoc.numPages });
-          currentPlano.paginas = pdfDoc.numPages;
+        estado.pdfDoc = await pdfjsLib.getDocument({ data: await descargarPDF(estado.plano.dropboxPath) }).promise;
+        if (estado.pdfDoc.numPages !== estado.plano.paginas) {
+          await updateDoc(doc(db,'planos',estado.plano.id), { paginas: estado.pdfDoc.numPages });
+          estado.plano.paginas = estado.pdfDoc.numPages;
         }
-        actualizarNavegacionPaginas();
-        await renderizarPagina(currentPagina, true);
+        actualizarNavegacionPaginas(estado);
+        await renderizarPagina(estado, estado.pagina, true);
       } catch(e) { console.error(e); alert('Error al cargar el PDF.'); }
       finally { spinner.classList.add('oculto'); }
     }
 
-    // renderizarPagina: renderiza el PDF al pdfBaseScale * pdfZoom actual.
-    // Si resetZoom=true, recalcula pdfBaseScale y resetea pdfZoom=1.
-    async function renderizarPagina(num, resetZoom = false) {
-      const page   = await pdfDoc.getPage(num);
+    async function renderizarPagina(estado, num, resetZoom = false) {
+      if (!estado.pdfDoc) return;
+      const page   = await estado.pdfDoc.getPage(num);
       const canvas = document.getElementById('pdf-canvas');
       const area   = document.getElementById('pdf-area');
       const ctx    = canvas.getContext('2d');
 
       if (resetZoom) {
         const vp0 = page.getViewport({ scale: 1 });
-        pdfBaseScale = area.clientWidth / vp0.width;
-        pdfZoom = 1;
+        estado.baseScale = area.clientWidth / vp0.width;
+        estado.zoom = 1;
       }
 
-      const escala = pdfBaseScale * pdfZoom;
+      const escala = estado.baseScale * estado.zoom;
       const vp     = page.getViewport({ scale: escala });
       canvas.width  = vp.width;
       canvas.height = vp.height;
       await page.render({ canvasContext: ctx, viewport: vp }).promise;
       renderizarMarcadores();
-      document.getElementById('btn-pagina-actual').textContent = `Página ${currentPagina} / ${pdfDoc.numPages}`;
-      document.getElementById('btn-zoom-nivel').textContent    = Math.round(pdfZoom * 100) + '%';
+      document.getElementById('btn-pagina-actual').textContent = `Página ${num} / ${estado.pdfDoc.numPages}`;
+      document.getElementById('btn-zoom-nivel').textContent    = Math.round(estado.zoom * 100) + '%';
     }
 
-    function actualizarNavegacionPaginas() {
-      document.getElementById('btn-pag-anterior').disabled = currentPagina <= 1;
-      document.getElementById('btn-pag-siguiente').disabled = currentPagina >= (pdfDoc?.numPages||1);
+    function actualizarNavegacionPaginas(estado) {
+      if (!estado) return;
+      document.getElementById('btn-pag-anterior').disabled = estado.pagina <= 1;
+      document.getElementById('btn-pag-siguiente').disabled = estado.pagina >= (estado.pdfDoc?.numPages||1);
     }
-    document.getElementById('btn-pag-anterior').addEventListener('click', async () => { if(currentPagina>1){currentPagina--;await renderizarPagina(currentPagina,true);actualizarNavegacionPaginas();} });
-    document.getElementById('btn-pag-siguiente').addEventListener('click', async () => { if(pdfDoc&&currentPagina<pdfDoc.numPages){currentPagina++;await renderizarPagina(currentPagina,true);actualizarNavegacionPaginas();} });
+
+    document.getElementById('btn-pag-anterior').addEventListener('click', async () => {
+      const est = pestañaActual(); if(!est||est.pagina<=1) return;
+      est.pagina--;
+      await renderizarPagina(est, est.pagina, true);
+      actualizarNavegacionPaginas(est);
+    });
+    document.getElementById('btn-pag-siguiente').addEventListener('click', async () => {
+      const est = pestañaActual(); if(!est||!est.pdfDoc||est.pagina>=est.pdfDoc.numPages) return;
+      est.pagina++;
+      await renderizarPagina(est, est.pagina, true);
+      actualizarNavegacionPaginas(est);
+    });
 
     // ─── ZOOM ─────────────────────────────────────────────────────────────────
-    // El zoom re-renderiza el canvas. El scroll del area se mantiene proporcionalmente.
     async function hacerZoom(factor, focalX, focalY) {
-      if (!pdfDoc) return;
-      const area    = document.getElementById('pdf-area');
-      const canvas  = document.getElementById('pdf-canvas');
-      // Punto focal en coordenadas del canvas (antes del zoom)
-      const absX    = area.scrollLeft + focalX;
-      const absY    = area.scrollTop  + focalY;
-      const ratioX  = absX / canvas.width;
-      const ratioY  = absY / canvas.height;
-
-      pdfZoom = Math.min(5, Math.max(0.25, pdfZoom * factor));
-      await renderizarPagina(currentPagina);
-
-      // Restaurar scroll para que el punto focal quede en el mismo lugar
+      const est = pestañaActual(); if (!est?.pdfDoc) return;
+      const area   = document.getElementById('pdf-area');
+      const canvas = document.getElementById('pdf-canvas');
+      const absX   = area.scrollLeft + focalX;
+      const absY   = area.scrollTop  + focalY;
+      const ratioX = absX / canvas.width;
+      const ratioY = absY / canvas.height;
+      est.zoom = Math.min(5, Math.max(0.25, est.zoom * factor));
+      await renderizarPagina(est, est.pagina);
       area.scrollLeft = ratioX * canvas.width  - focalX;
       area.scrollTop  = ratioY * canvas.height - focalY;
     }
@@ -279,18 +412,16 @@
       await hacerZoom(0.8, area.clientWidth/2, area.clientHeight/2);
     });
     document.getElementById('btn-zoom-nivel').addEventListener('click', async () => {
-      if (!pdfDoc) return;
-      await renderizarPagina(currentPagina, true);
+      const est = pestañaActual(); if (!est) return;
+      await renderizarPagina(est, est.pagina, true);
     });
 
-    // Zoom con scroll del mouse (sin ctrlKey — scroll normal hace scroll, no zoom)
     document.getElementById('pdf-area').addEventListener('wheel', async (e) => {
-      if (!pdfDoc) return;
-      // Solo hacer zoom si se presiona Ctrl/Cmd, de lo contrario scroll normal
+      const est = pestañaActual(); if (!est?.pdfDoc) return;
       if (!e.ctrlKey && !e.metaKey) return;
       e.preventDefault();
-      const area  = document.getElementById('pdf-area');
-      const rect  = area.getBoundingClientRect();
+      const area = document.getElementById('pdf-area');
+      const rect = area.getBoundingClientRect();
       await hacerZoom(e.deltaY < 0 ? 1.1 : 0.9, e.clientX - rect.left, e.clientY - rect.top);
     }, { passive: false });
 
@@ -299,7 +430,8 @@
     let isPanning = false, panStart = {x:0,y:0}, panScroll = {x:0,y:0}, didPan = false;
 
     pdfArea.addEventListener('mousedown', (e) => {
-      if (modoEdicion || e.button !== 0) return;
+      const est = pestañaActual();
+      if (est?.modoEdicion || e.button !== 0) return;
       isPanning = true; didPan = false;
       panStart  = { x: e.clientX, y: e.clientY };
       panScroll = { x: pdfArea.scrollLeft, y: pdfArea.scrollTop };
@@ -314,17 +446,16 @@
     });
     window.addEventListener('mouseup', () => { isPanning = false; pdfArea.classList.remove('panning'); });
 
-    // Click para nueva obs — ignorar si fue un drag
     document.getElementById('pdf-wrapper').addEventListener('click', (e) => {
       if (didPan) { didPan = false; return; }
-      if (!modoEdicion) return;
+      const est = pestañaActual();
+      if (!est?.modoEdicion) return;
       const canvas = document.getElementById('pdf-canvas');
       const rect   = canvas.getBoundingClientRect();
       abrirPanelNuevaObs((e.clientX-rect.left)/rect.width, (e.clientY-rect.top)/rect.height);
       desactivarModoEdicion();
     });
 
-    // Pinch zoom mobile
     let pinchDist = null;
     pdfArea.addEventListener('touchstart', e => { if(e.touches.length===2) pinchDist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY); },{passive:true});
     pdfArea.addEventListener('touchmove', async e => {
@@ -332,19 +463,30 @@
     },{passive:false});
     pdfArea.addEventListener('touchend', ()=>{ pinchDist=null; });
 
+    // Botón home — volver a la lista de planos (sin cerrar pestañas)
     document.getElementById('btn-volver').addEventListener('click', () => {
-      if (obsUnsubscribe) { obsUnsubscribe(); obsUnsubscribe=null; }
-      pdfDoc=null; observaciones={}; mostrar('planos');
+      mostrar('planos');
+    });
+
+    // Botón volver al inspector desde la lista de planos
+    document.getElementById('btn-volver-inspector').addEventListener('click', () => {
+      if (pestañaActiva && pestañas.has(pestañaActiva)) {
+        mostrar('inspector');
+        renderizarPestañas();
+      } else if (pestañas.size > 0) {
+        activarPestaña(pestañas.keys().next().value);
+      }
     });
 
     // ─── MARCADORES ───────────────────────────────────────────────────────────
     function renderizarMarcadores() {
+      const est     = pestañaActual(); if (!est) return;
       const canvas  = document.getElementById('pdf-canvas');
       const overlay = document.getElementById('marcadores-overlay');
       overlay.innerHTML = '';
       overlay.style.width  = canvas.width  + 'px';
       overlay.style.height = canvas.height + 'px';
-      Object.values(observaciones).filter(o=>o.pagina===currentPagina).forEach(obs => {
+      Object.values(est.observaciones).filter(o=>o.pagina===est.pagina).forEach(obs => {
         const pin = document.createElement('div');
         pin.className  = `pin ${obs.estado==='Resuelta'?'pin-resuelta':'pin-pendiente'}`;
         pin.style.left = (obs.x*canvas.width)+'px';
@@ -358,28 +500,35 @@
 
     // ─── MODO EDICION ─────────────────────────────────────────────────────────
     function activarModoEdicion() {
-      modoEdicion=true;
-      pdfArea.style.cursor='crosshair';
-      document.getElementById('btn-nueva-obs').textContent='✕ Cancelar';
+      const est = pestañaActual(); if (!est) return;
+      est.modoEdicion = true;
+      pdfArea.style.cursor = 'crosshair';
+      document.getElementById('btn-nueva-obs').textContent = '✕ Cancelar';
       document.getElementById('btn-nueva-obs').classList.add('activo');
     }
     function desactivarModoEdicion() {
-      modoEdicion=false;
-      pdfArea.style.cursor='';
-      document.getElementById('btn-nueva-obs').textContent='+ Nueva obs.';
+      const est = pestañaActual(); if (!est) return;
+      est.modoEdicion = false;
+      pdfArea.style.cursor = '';
+      document.getElementById('btn-nueva-obs').textContent = '+ Nueva obs.';
       document.getElementById('btn-nueva-obs').classList.remove('activo');
     }
-    document.getElementById('btn-nueva-obs').addEventListener('click', () => { if(modoEdicion){desactivarModoEdicion();}else{activarModoEdicion();} });
+    document.getElementById('btn-nueva-obs').addEventListener('click', () => {
+      const est = pestañaActual(); if (!est) return;
+      if (est.modoEdicion) desactivarModoEdicion(); else activarModoEdicion();
+    });
 
     function actualizarContadorObs() {
-      const total=Object.values(observaciones).length;
-      const pend=Object.values(observaciones).filter(o=>o.estado==='Pendiente').length;
-      document.getElementById('contador-obs').textContent=`${total} obs. · ${pend} pendiente${pend!==1?'s':''}`;
+      const est = pestañaActual(); if (!est) return;
+      const total = Object.values(est.observaciones).length;
+      const pend  = Object.values(est.observaciones).filter(o=>o.estado==='Pendiente').length;
+      document.getElementById('contador-obs').textContent = `${total} obs. · ${pend} pendiente${pend!==1?'s':''}`;
     }
 
     // ─── PANEL OBS ────────────────────────────────────────────────────────────
     function abrirPanelNuevaObs(x, y) {
-      obsSeleccionada=null; limpiarFormulario();
+      const est = pestañaActual(); if (!est) return;
+      est.obsSeleccionada = null; limpiarFormulario();
       document.getElementById('panel-titulo').textContent='Nueva observación';
       document.getElementById('obs-x').value=x; document.getElementById('obs-y').value=y;
       document.getElementById('obs-estado-grupo').classList.add('oculto');
@@ -388,8 +537,9 @@
       abrirPanel();
     }
     function abrirPanelObs(obsId) {
-      const obs=observaciones[obsId]; if(!obs)return;
-      obsSeleccionada=obsId;
+      const est = pestañaActual(); if (!est) return;
+      const obs = est.observaciones[obsId]; if(!obs)return;
+      est.obsSeleccionada = obsId;
       const esLector=currentUserData?.rol==='lector';
       document.getElementById('panel-titulo').textContent=obs.numero||'Observación';
       document.getElementById('obs-x').value=obs.x; document.getElementById('obs-y').value=obs.y;
@@ -422,7 +572,7 @@
       abrirPanel();
     }
     function abrirPanel() { document.getElementById('panel-obs').classList.remove('oculto'); document.getElementById('panel-obs').classList.add('abierto'); }
-    function cerrarPanel() { document.getElementById('panel-obs').classList.remove('abierto'); setTimeout(()=>document.getElementById('panel-obs').classList.add('oculto'),300); obsSeleccionada=null; }
+    function cerrarPanel() { document.getElementById('panel-obs').classList.remove('abierto'); setTimeout(()=>document.getElementById('panel-obs').classList.add('oculto'),300); const est=pestañaActual(); if(est) est.obsSeleccionada=null; }
     document.getElementById('btn-cerrar-panel').addEventListener('click', cerrarPanel);
 
     function limpiarFormulario() {
@@ -458,6 +608,7 @@
     });
 
     document.getElementById('btn-guardar-obs').addEventListener('click', async ()=>{
+      const est = pestañaActual(); if (!est) return;
       const rubro=document.getElementById('obs-rubro').value;
       const responsable=document.getElementById('obs-responsable').value==='Otro'?document.getElementById('obs-responsable-otro-texto').value:document.getElementById('obs-responsable').value;
       const descripcion=document.getElementById('obs-descripcion').value.trim();
@@ -471,63 +622,59 @@
       try {
         const fotoInput = document.getElementById('obs-foto');
         const fotoEliminada = fotoInput.dataset.eliminada === 'true';
-        let fotoUrl = obsSeleccionada ? (observaciones[obsSeleccionada]?.fotoUrl||'') : '';
+        let fotoUrl = est.obsSeleccionada ? (est.observaciones[est.obsSeleccionada]?.fotoUrl||'') : '';
         const fotoFile = fotoInput.files[0];
         if (fotoFile) {
-          const fotoRef = ref(storage,`fotos/${currentPlano.id}/${Date.now()}_${fotoFile.name}`);
+          const fotoRef = ref(storage,`fotos/${est.plano.id}/${Date.now()}_${fotoFile.name}`);
           await uploadBytes(fotoRef, fotoFile);
           fotoUrl = await getDownloadURL(fotoRef);
         } else if (fotoEliminada) {
-          // Borrar foto anterior de Storage si existía
           if (fotoUrl) { try { await deleteObject(ref(storage, fotoUrl)); } catch(e) {} }
           fotoUrl = '';
         }
         fotoInput.dataset.eliminada = '';
-        if(obsSeleccionada){
+        if(est.obsSeleccionada){
           const data={rubro,responsable,descripcion,severidad,estado,notaResolucion:nota,fotoUrl,actualizadoEn:serverTimestamp(),sincronizadoSheet:false};
-          if(estado==='Resuelta'&&observaciones[obsSeleccionada]?.estado!=='Resuelta')data.resueltaEn=serverTimestamp();
-          await updateDoc(doc(db,'observaciones',obsSeleccionada),data);
+          if(estado==='Resuelta'&&est.observaciones[est.obsSeleccionada]?.estado!=='Resuelta')data.resueltaEn=serverTimestamp();
+          await updateDoc(doc(db,'observaciones',est.obsSeleccionada),data);
         } else {
-          const nums=(await getDocs(query(collection(db,'observaciones'),where('planoId','==',currentPlano.id)))).docs.map(d=>{const m=(d.data().numero||'').match(/(\d+)$/);return m?parseInt(m[1]):0;});
+          const nums=(await getDocs(query(collection(db,'observaciones'),where('planoId','==',est.plano.id)))).docs.map(d=>{const m=(d.data().numero||'').match(/(\d+)$/);return m?parseInt(m[1]):0;});
           const numero=`OBS-${(Math.max(0,...nums)+1).toString().padStart(3,'0')}`;
-          await addDoc(collection(db,'observaciones'),{planoId:currentPlano.id,numero,pagina:currentPagina,x,y,rubro,responsable,descripcion,severidad,estado:'Pendiente',notaResolucion:'',fotoUrl,creadoPor:currentUser.uid,creadoEn:serverTimestamp(),resueltaEn:null,sincronizadoSheet:false});
+          await addDoc(collection(db,'observaciones'),{planoId:est.plano.id,numero,pagina:est.pagina,x,y,rubro,responsable,descripcion,severidad,estado:'Pendiente',notaResolucion:'',fotoUrl,creadoPor:currentUser.uid,creadoEn:serverTimestamp(),resueltaEn:null,sincronizadoSheet:false});
         }
         cerrarPanel();
       } catch(e){console.error(e);alert('Error al guardar.');}
-      finally{btn.disabled=false;btn.textContent=obsSeleccionada?'Actualizar':'Guardar';}
+      finally{btn.disabled=false;btn.textContent=est.obsSeleccionada?'Actualizar':'Guardar';}
     });
 
     document.getElementById('btn-eliminar-obs').addEventListener('click', async ()=>{
-      if(!obsSeleccionada)return;
-      const obs=observaciones[obsSeleccionada];
+      const est = pestañaActual(); if (!est?.obsSeleccionada) return;
+      const obs = est.observaciones[est.obsSeleccionada];
       if(!confirm(`¿Eliminar ${obs.numero}?`))return;
       if(obs.fotoUrl){try{await deleteObject(ref(storage,obs.fotoUrl));}catch(e){}}
-      await deleteDoc(doc(db,'observaciones',obsSeleccionada));
-      // Intentar borrar del Sheet (best effort — no bloquea si falla)
+      await deleteDoc(doc(db,'observaciones',est.obsSeleccionada));
       try {
-        await fetch(APPS_SCRIPT_URL, {
-          method: 'POST',
-          body: JSON.stringify({ accion: 'delete', id: obs.numero })
-        });
+        await fetch(APPS_SCRIPT_URL, { method:'POST', body:JSON.stringify({accion:'delete',id:obs.numero}) });
       } catch(e) { console.warn('No se pudo borrar del Sheet:', e); }
       cerrarPanel();
     });
 
-    // ─── SINCRONIZAR ──────────────────────────────────────────────────────────
+    // ─── CERTIFICAR (sincronizar plano activo) ────────────────────────────────
     document.getElementById('btn-sincronizar').addEventListener('click', async ()=>{
-      const noSync=Object.values(observaciones).filter(o=>!o.sincronizadoSheet);
-      if(!noSync.length){alert('No hay observaciones nuevas para sincronizar.');return;}
-      const btn=document.getElementById('btn-sincronizar');btn.disabled=true;btn.textContent='Sincronizando...';
+      const est = pestañaActual(); if (!est) return;
+      const noSync = Object.values(est.observaciones).filter(o=>!o.sincronizadoSheet);
+      if(!noSync.length){alert('No hay observaciones nuevas para certificar en este plano.');return;}
+      const btn=document.getElementById('btn-sincronizar');btn.disabled=true;btn.textContent='Certificando...';
       let errores=0;
       for(const obs of noSync){
         try{
-          const res=await fetch(APPS_SCRIPT_URL,{method:'POST',body:JSON.stringify({accion:'upsert',id:obs.numero,obra:OBRA_NOMBRE,plano:currentPlano.nombre,pagina:obs.pagina,rubro:obs.rubro,descripcion:obs.descripcion,severidad:obs.severidad,responsable:obs.responsable,foto:obs.fotoUrl||'',fechaCreacion:obs.creadoEn?.toDate?.()?.toLocaleDateString('es-AR')||'',estado:obs.estado,notaResolucion:obs.notaResolucion||'',fechaResolucion:obs.resueltaEn?.toDate?.()?.toLocaleDateString('es-AR')||''})});
+          const res=await fetch(APPS_SCRIPT_URL,{method:'POST',body:JSON.stringify({accion:'upsert',id:obs.numero,obra:OBRA_NOMBRE,plano:est.plano.nombre,pagina:obs.pagina,rubro:obs.rubro,descripcion:obs.descripcion,severidad:obs.severidad,responsable:obs.responsable,foto:obs.fotoUrl||'',fechaCreacion:obs.creadoEn?.toDate?.()?.toLocaleDateString('es-AR')||'',estado:obs.estado,notaResolucion:obs.notaResolucion||'',fechaResolucion:obs.resueltaEn?.toDate?.()?.toLocaleDateString('es-AR')||''})});
           if(res.ok)await updateDoc(doc(db,'observaciones',obs.id),{sincronizadoSheet:true});else errores++;
         }catch(e){console.error(e);errores++;}
       }
-      btn.disabled=false;btn.textContent='☁ Sincronizar';
-      if(!errores)mostrarToast(`✓ ${noSync.length} observación/es sincronizadas`);
-      else alert(`Se sincronizaron ${noSync.length-errores} de ${noSync.length}.`);
+      btn.disabled=false;btn.textContent='✓ Certificar';
+      if(!errores)mostrarToast(`✓ ${noSync.length} observación/es certificadas`);
+      else alert(`Se certificaron ${noSync.length-errores} de ${noSync.length}.`);
     });
 
     function mostrarToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.remove('oculto');t.classList.add('visible');setTimeout(()=>{t.classList.remove('visible');setTimeout(()=>t.classList.add('oculto'),300);},3000);}
@@ -611,8 +758,20 @@
 
     #pantalla-inspector{height:100vh;display:flex;flex-direction:column;}
     .inspector-header{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 16px;height:56px;display:flex;align-items:center;gap:12px;flex-shrink:0;}
-    .btn-volver{background:var(--bg3);color:var(--text);padding:7px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);font-size:13px;}
+    .btn-volver{background:var(--bg3);color:var(--text);padding:7px 10px;border-radius:var(--radius-sm);border:1px solid var(--border);font-size:18px;line-height:1;}
     .btn-volver:hover{background:var(--border);}
+
+    /* ── Pestañas ── */
+    #pestañas-bar{background:var(--bg);border-bottom:1px solid var(--border);display:flex;align-items:flex-end;padding:0 16px;gap:2px;flex-shrink:0;overflow-x:auto;min-height:36px;}
+    #pestañas-bar::-webkit-scrollbar{height:3px;}
+    #pestañas-bar::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+    #pestañas-container{display:flex;gap:2px;align-items:flex-end;}
+    .pestaña{display:flex;align-items:center;gap:6px;padding:6px 12px;background:var(--bg3);border:1px solid var(--border);border-bottom:none;border-radius:6px 6px 0 0;cursor:pointer;font-size:12px;color:var(--text2);max-width:180px;transition:background var(--trans),color var(--trans);flex-shrink:0;}
+    .pestaña:hover{background:var(--bg2);color:var(--text);}
+    .pestaña.activa{background:var(--bg2);color:var(--text);border-color:var(--accent);border-bottom-color:var(--bg2);}
+    .pestaña-nombre{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;}
+    .pestaña-cerrar{background:none;border:none;color:var(--text3);font-size:12px;padding:0 2px;line-height:1;border-radius:3px;flex-shrink:0;}
+    .pestaña-cerrar:hover{background:rgba(255,79,79,0.2);color:var(--danger);}
     .inspector-titulo{flex:1;min-width:0;}
     .inspector-titulo h1{font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
     .inspector-titulo span{font-size:11px;color:var(--text2);}
@@ -695,6 +854,7 @@
       #panel-obs{width:100%;max-width:360px;}
       .login-card{width:100%;padding:24px 20px;}
       .user-texts{display:none;}
+      .pestaña-nombre{max-width:80px;}
     }
   </style>
 </head>
@@ -729,6 +889,7 @@
         <div><div class="header-titulo">GC Inspector</div><div class="header-subtitulo">Catamarán 12</div></div>
       </div>
       <div class="header-acciones">
+        <button id="btn-volver-inspector" class="btn-secondary oculto">← Inspector</button>
         <button id="btn-usuarios" class="btn-secondary" style="display:none">👥 Usuarios</button>
         <div class="user-info">
           <img id="user-avatar" class="user-avatar" src="" alt="">
@@ -737,7 +898,7 @@
             <div id="user-email" class="user-email-small"></div>
           </div>
         </div>
-        <button class="btn-logout btn-secondary">Salir</button>
+        <button class="btn-logout btn-secondary">Cerrar sesión</button>
       </div>
     </header>
     <div class="planos-body">
@@ -766,10 +927,13 @@
 
   <div id="pantalla-inspector" class="oculto">
     <header class="inspector-header">
-      <button id="btn-volver" class="btn-volver">← Volver</button>
+      <button id="btn-volver" class="btn-volver" title="Ir al inicio">🏠</button>
       <div class="inspector-titulo"><h1 id="inspector-titulo">Plano</h1><span id="inspector-obra"></span></div>
-      <button class="btn-logout btn-secondary" style="font-size:12px;padding:6px 10px">Salir</button>
+      <button class="btn-logout btn-secondary" style="font-size:12px;padding:6px 10px">Cerrar sesión</button>
     </header>
+    <div id="pestañas-bar">
+      <div id="pestañas-container"></div>
+    </div>
     <div class="inspector-toolbar">
       <button id="btn-pag-anterior" class="btn-pag">‹</button>
       <button id="btn-pagina-actual" class="btn-pag">Página 1</button>
@@ -780,7 +944,7 @@
       <button id="btn-zoom-in" class="btn-pag">+</button>
       <div class="toolbar-sep"></div>
       <span id="contador-obs"></span>
-      <button id="btn-sincronizar">☁ Sincronizar</button>
+      <button id="btn-sincronizar">✓ Certificar</button>
       <button id="btn-nueva-obs">+ Nueva obs.</button>
     </div>
     <div class="inspector-body">
