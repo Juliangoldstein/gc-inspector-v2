@@ -90,7 +90,7 @@
     let modoEdicion     = false;  // true = colocando marcador
     let obsSeleccionada = null;
     let planosUnsubscribe = null;
-    let zoomLevel       = 1.0;    // 1.0 = ajustar al ancho, >1 = zoom in
+    // zoom/pan manejado por pdfEscala/pdfOffsetX/pdfOffsetY
 
     pdfjsLib.GlobalWorkerOptions.workerSrc =
       'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -457,26 +457,54 @@
       }
     }
 
+    // ─── SISTEMA DE ZOOM/PAN (mismo que v1) ──────────────────────────────────
+    // El canvas siempre se renderiza a escala base (ajusta al ancho).
+    // El zoom se aplica via CSS transform sobre el wrapper, no re-renderizando.
+    let pdfEscala    = 1.0;   // zoom actual (1 = ajustar al ancho)
+    let pdfOffsetX   = 0;
+    let pdfOffsetY   = 0;
+    let pdfPageWidth = 0;     // ancho del PDF en px a escala 1
+
     async function renderizarPagina(num) {
       const page    = await pdfDoc.getPage(num);
       const canvas  = document.getElementById('pdf-canvas');
-      const wrapper = document.getElementById('pdf-wrapper');
+      const area    = document.getElementById('pdf-area');
       const ctx     = canvas.getContext('2d');
 
-      const viewport  = page.getViewport({ scale: 1 });
-      const baseScale = wrapper.clientWidth / viewport.width;
-      pdfScale        = baseScale * zoomLevel;
-      const vp        = page.getViewport({ scale: pdfScale });
+      const viewport = page.getViewport({ scale: 1 });
+      pdfPageWidth   = viewport.width;
+
+      // Siempre renderizar a escala que ajusta al ancho del área
+      const baseScale = area.clientWidth / viewport.width;
+      const vp        = page.getViewport({ scale: baseScale });
 
       canvas.width  = vp.width;
       canvas.height = vp.height;
 
       await page.render({ canvasContext: ctx, viewport: vp }).promise;
+
+      // Resetear zoom al cambiar de página
+      pdfEscala  = 1.0;
+      pdfOffsetX = 0;
+      pdfOffsetY = 0;
+      aplicarTransformCanvas();
       renderizarMarcadores();
+
       document.getElementById('btn-pagina-actual').textContent =
         `Página ${currentPagina} / ${pdfDoc.numPages}`;
+      document.getElementById('btn-zoom-nivel').textContent = '100%';
+    }
+
+    function aplicarTransformCanvas() {
+      const canvas  = document.getElementById('pdf-canvas');
+      const overlay = document.getElementById('marcadores-overlay');
+      const t = `translate(${pdfOffsetX}px, ${pdfOffsetY}px) scale(${pdfEscala})`;
+      canvas.style.transform        = t;
+      canvas.style.transformOrigin  = '0 0';
+      overlay.style.transform       = t;
+      overlay.style.transformOrigin = '0 0';
       document.getElementById('btn-zoom-nivel').textContent =
-        Math.round(zoomLevel * 100) + '%';
+        Math.round(pdfEscala * 100) + '%';
     }
 
     function actualizarNavegacionPaginas() {
@@ -502,93 +530,142 @@
       }
     });
 
-    // Zoom
-    document.getElementById('btn-zoom-in').addEventListener('click', async () => {
-      if (zoomLevel >= 4) return;
-      zoomLevel = Math.min(4, zoomLevel + 0.25);
-      if (pdfDoc) await renderizarPagina(currentPagina);
-    });
-
-    document.getElementById('btn-zoom-out').addEventListener('click', async () => {
-      if (zoomLevel <= 0.5) return;
-      zoomLevel = Math.max(0.5, zoomLevel - 0.25);
-      if (pdfDoc) await renderizarPagina(currentPagina);
-    });
-
-    document.getElementById('btn-zoom-nivel').addEventListener('click', async () => {
-      // Reset zoom a 100%
-      zoomLevel = 1.0;
-      if (pdfDoc) await renderizarPagina(currentPagina);
-    });
-
-    // ─── ZOOM CON SCROLL ─────────────────────────────────────────────────────
-    document.getElementById('pdf-area').addEventListener('wheel', async (e) => {
+    // Botones de zoom
+    document.getElementById('btn-zoom-in').addEventListener('click', () => {
       if (!pdfDoc) return;
-      if (e.ctrlKey || e.metaKey) {
-        e.preventDefault();
-        const delta = e.deltaY > 0 ? -0.25 : 0.25;
-        const nuevo = Math.min(4, Math.max(0.5, zoomLevel + delta));
-        if (nuevo === zoomLevel) return;
-        zoomLevel = nuevo;
-        await renderizarPagina(currentPagina);
-      }
-    }, { passive: false });
+      const canvas = document.getElementById('pdf-canvas');
+      const cx = canvas.width / 2;
+      const cy = canvas.height / 2;
+      const canvasCx = (cx - pdfOffsetX) / pdfEscala;
+      const canvasCy = (cy - pdfOffsetY) / pdfEscala;
+      pdfEscala  = Math.min(5, pdfEscala * 1.25);
+      pdfOffsetX = cx - canvasCx * pdfEscala;
+      pdfOffsetY = cy - canvasCy * pdfEscala;
+      aplicarTransformCanvas();
+      renderizarMarcadores();
+    });
 
-    // ─── PAN CON DRAG ─────────────────────────────────────────────────────────
+    document.getElementById('btn-zoom-out').addEventListener('click', () => {
+      if (!pdfDoc) return;
+      const canvas = document.getElementById('pdf-canvas');
+      const cx = canvas.width / 2;
+      const cy = canvas.height / 2;
+      const canvasCx = (cx - pdfOffsetX) / pdfEscala;
+      const canvasCy = (cy - pdfOffsetY) / pdfEscala;
+      pdfEscala  = Math.max(0.3, pdfEscala / 1.25);
+      pdfOffsetX = cx - canvasCx * pdfEscala;
+      pdfOffsetY = cy - canvasCy * pdfEscala;
+      aplicarTransformCanvas();
+      renderizarMarcadores();
+    });
+
+    document.getElementById('btn-zoom-nivel').addEventListener('click', () => {
+      if (!pdfDoc) return;
+      pdfEscala  = 1.0;
+      pdfOffsetX = 0;
+      pdfOffsetY = 0;
+      aplicarTransformCanvas();
+      renderizarMarcadores();
+    });
+
+    // ─── ZOOM Y PAN (sistema v1) ──────────────────────────────────────────────
     const pdfArea = document.getElementById('pdf-area');
     let isPanning = false;
     let panStart  = { x: 0, y: 0 };
-    let scrollStart = { x: 0, y: 0 };
+    let panOffset = { x: 0, y: 0 };
+    let didPan    = false;
 
     pdfArea.addEventListener('mousedown', (e) => {
       if (modoEdicion) return;
-      if (e.target.classList.contains('pin')) return;
       if (e.button !== 0) return;
-      isPanning   = true;
-      panStart    = { x: e.clientX, y: e.clientY };
-      scrollStart = { x: pdfArea.scrollLeft, y: pdfArea.scrollTop };
+      isPanning = true;
+      didPan    = false;
+      panStart  = { x: e.clientX - pdfOffsetX, y: e.clientY - pdfOffsetY };
       pdfArea.classList.add('panning');
       e.preventDefault();
     });
 
     window.addEventListener('mousemove', (e) => {
       if (!isPanning) return;
-      const dx = e.clientX - panStart.x;
-      const dy = e.clientY - panStart.y;
-      pdfArea.scrollLeft = scrollStart.x - dx;
-      pdfArea.scrollTop  = scrollStart.y - dy;
+      const nx = e.clientX - panStart.x;
+      const ny = e.clientY - panStart.y;
+      if (Math.abs(nx - pdfOffsetX) > 2 || Math.abs(ny - pdfOffsetY) > 2) didPan = true;
+      pdfOffsetX = nx;
+      pdfOffsetY = ny;
+      aplicarTransformCanvas();
     });
 
     window.addEventListener('mouseup', () => {
-      if (!isPanning) return;
       isPanning = false;
       pdfArea.classList.remove('panning');
     });
 
-    // Touch pan para mobile
-    let touchStart = null;
-    let touchScrollStart = null;
+    // Click en canvas: solo si no fue drag
+    document.getElementById('pdf-wrapper').addEventListener('click', (e) => {
+      if (didPan) { didPan = false; return; }
+      if (!modoEdicion) return;
+      const canvas = document.getElementById('pdf-canvas');
+      const rect   = canvas.getBoundingClientRect();
+      const x = (e.clientX - rect.left) / rect.width;
+      const y = (e.clientY - rect.top)  / rect.height;
+      desactivarModoEdicion();
+      abrirPanelNuevaObs(x, y);
+    }, true);
 
+    // Zoom con scroll del mouse, centrado en el cursor
+    pdfArea.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      if (!pdfDoc) return;
+      const canvas  = document.getElementById('pdf-canvas');
+      const rect    = pdfArea.getBoundingClientRect();
+      const cx      = e.clientX - rect.left;
+      const cy      = e.clientY - rect.top;
+      // Punto del canvas bajo el cursor (antes del zoom)
+      const canvasCx = (cx - pdfOffsetX) / pdfEscala;
+      const canvasCy = (cy - pdfOffsetY) / pdfEscala;
+      const factor   = e.deltaY < 0 ? 1.1 : 0.9;
+      pdfEscala      = Math.max(0.3, Math.min(5, pdfEscala * factor));
+      // Mantener el punto bajo el cursor fijo
+      pdfOffsetX = cx - canvasCx * pdfEscala;
+      pdfOffsetY = cy - canvasCy * pdfEscala;
+      aplicarTransformCanvas();
+      renderizarMarcadores();
+    }, { passive: false });
+
+    // Pinch zoom mobile
+    let pinchDist = null;
     pdfArea.addEventListener('touchstart', (e) => {
-      if (modoEdicion) return;
-      if (e.touches.length === 1) {
-        touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-        touchScrollStart = { x: pdfArea.scrollLeft, y: pdfArea.scrollTop };
+      if (e.touches.length === 2) {
+        pinchDist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
       }
     }, { passive: true });
 
     pdfArea.addEventListener('touchmove', (e) => {
-      if (!touchStart || modoEdicion) return;
-      if (e.touches.length === 1) {
-        const dx = e.touches[0].clientX - touchStart.x;
-        const dy = e.touches[0].clientY - touchStart.y;
-        pdfArea.scrollLeft = touchScrollStart.x - dx;
-        pdfArea.scrollTop  = touchScrollStart.y - dy;
+      if (e.touches.length === 2 && pinchDist) {
         e.preventDefault();
+        const d      = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        const factor = d / pinchDist;
+        const rect   = pdfArea.getBoundingClientRect();
+        const cx     = ((e.touches[0].clientX + e.touches[1].clientX) / 2) - rect.left;
+        const cy     = ((e.touches[0].clientY + e.touches[1].clientY) / 2) - rect.top;
+        const canvasCx = (cx - pdfOffsetX) / pdfEscala;
+        const canvasCy = (cy - pdfOffsetY) / pdfEscala;
+        pdfEscala    = Math.max(0.3, Math.min(5, pdfEscala * factor));
+        pdfOffsetX   = cx - canvasCx * pdfEscala;
+        pdfOffsetY   = cy - canvasCy * pdfEscala;
+        pinchDist    = d;
+        aplicarTransformCanvas();
+        renderizarMarcadores();
       }
     }, { passive: false });
 
-    pdfArea.addEventListener('touchend', () => { touchStart = null; });
+    pdfArea.addEventListener('touchend', () => { pinchDist = null; });
 
     // Volver a planos
     document.getElementById('btn-volver').addEventListener('click', () => {
@@ -606,19 +683,18 @@
       const canvas  = document.getElementById('pdf-canvas');
       const overlay = document.getElementById('marcadores-overlay');
       overlay.innerHTML = '';
-      // Sincronizar tamaño del overlay exactamente con el canvas renderizado
-      const rect = canvas.getBoundingClientRect();
-      overlay.style.width  = rect.width  + 'px';
-      overlay.style.height = rect.height + 'px';
+      // Overlay mismo tamaño que el canvas (el transform se aplica junto con el canvas)
+      overlay.style.width  = canvas.width  + 'px';
+      overlay.style.height = canvas.height + 'px';
 
       Object.values(observaciones)
         .filter(o => o.pagina === currentPagina)
         .forEach(obs => {
           const pin = document.createElement('div');
           pin.className = `pin ${obs.estado === 'Resuelta' ? 'pin-resuelta' : 'pin-pendiente'}`;
-          // Usar el tamaño visual del canvas (getBoundingClientRect) no el interno
-          pin.style.left = (obs.x * rect.width)  + 'px';
-          pin.style.top  = (obs.y * rect.height) + 'px';
+          // Coordenadas relativas (0-1) × tamaño real del canvas
+          pin.style.left = (obs.x * canvas.width)  + 'px';
+          pin.style.top  = (obs.y * canvas.height) + 'px';
           pin.textContent = obs.numero || '?';
           pin.title = `${obs.numero} — ${obs.rubro}`;
           pin.addEventListener('click', (e) => {
@@ -629,17 +705,7 @@
         });
     }
 
-    // Click en canvas para agregar marcador
-    document.getElementById('pdf-wrapper').addEventListener('click', (e) => {
-      if (!modoEdicion) return;
-      const canvas = document.getElementById('pdf-canvas');
-      const rect   = canvas.getBoundingClientRect();
-      // Usar dimensiones visuales (rect) para consistencia con renderizarMarcadores
-      const x = (e.clientX - rect.left) / rect.width;
-      const y = (e.clientY - rect.top)  / rect.height;
-      desactivarModoEdicion();
-      abrirPanelNuevaObs(x, y);
-    });
+    // (click en pdf-wrapper manejado en la sección de pan, arriba)
 
     function activarModoEdicion() {
       modoEdicion = true;
@@ -1491,10 +1557,11 @@
 
     .pdf-area {
       flex: 1;
-      overflow: auto;
+      overflow: hidden;
       position: relative;
       background: var(--bg);
       cursor: grab;
+      user-select: none;
     }
 
     .pdf-area.panning {
