@@ -399,6 +399,8 @@
       pdfEscala  = 1.0;
       pdfOffsetX = 0;
       pdfOffsetY = 0;
+
+      // Mostrar inspector ANTES de cargar el PDF para que pdf-area tenga dimensiones
       mostrar('inspector');
 
       document.getElementById('inspector-titulo').textContent = plano.nombre;
@@ -428,6 +430,9 @@
         renderizarMarcadores();
         actualizarContadorObs();
       });
+
+      // Pequeño delay para asegurar que el DOM esté visible antes de medir clientWidth
+      await new Promise(r => setTimeout(r, 50));
 
       // Cargar PDF
       await cargarPDF(plano.dropboxPath);
