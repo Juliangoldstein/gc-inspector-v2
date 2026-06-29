@@ -379,11 +379,10 @@
     }
     document.getElementById('btn-cerrar-modal-plano').addEventListener('click', () => document.getElementById('modal-agregar-plano').classList.add('oculto'));
     async function seleccionarDropbox(archivo) {
-      const nombreOriginal = archivo.name.replace('.pdf', '');          // con guiones bajos
-      const nombreDisplay  = nombreOriginal.replace(/_/g, ' ');         // para mostrar en UI
+      const nombreOriginal = archivo.name.replace('.pdf', '');          // nombre exacto de Dropbox
       const meta           = parsearNombrePlano(nombreOriginal) || {};
       const docRef = await addDoc(collection(db,'planos'), {
-        nombre:        nombreDisplay,   // legible para mostrar
+        nombre:        nombreOriginal,  // exactamente como está en Dropbox
         nombreOriginal: nombreOriginal, // para parsear y filtrar
         dropboxPath:   archivo.path_lower,
         paginas:       1,
@@ -397,7 +396,7 @@
         creadoPor:     currentUser.uid,
         creadoEn:      serverTimestamp(),
       });
-      const plano = { id: docRef.id, nombre: nombreDisplay, nombreOriginal, dropboxPath: archivo.path_lower, paginas: 1, ...meta };
+      const plano = { id: docRef.id, nombre: nombreOriginal, nombreOriginal, dropboxPath: archivo.path_lower, paginas: 1, ...meta };
       abrirPlano(plano);
     }
 
