@@ -78,17 +78,27 @@
 
     const RUBROS = ['Agua','Aire Acondicionado','Carpintería aluminio','Cerámico','Cloaca y pluvial','Durlock','Electricidad','Estructura','Gas','Incendio','Mampostería','Marcos y premarcos','Marmoles','Metalúrgica','Muebles','Pintura','Replanteo','Revoque y Contrapiso','Terminaciones','Yeso','Zócalos'];
     const RESPONSABLES = {
-      'Agua':['Plomero','Jefe de obra','Otro'],'Aire Acondicionado':['Técnico AC','Jefe de obra','Otro'],
-      'Carpintería aluminio':['Carpintero','Jefe de obra','Otro'],'Cerámico':['Ceramista','Jefe de obra','Otro'],
-      'Cloaca y pluvial':['Plomero','Jefe de obra','Otro'],'Durlock':['Durlocker','Jefe de obra','Otro'],
-      'Electricidad':['Electricista','Jefe de obra','Otro'],'Estructura':['Estructurista','Jefe de obra','Otro'],
-      'Gas':['Gasista','Jefe de obra','Otro'],'Incendio':['Especialista incendio','Jefe de obra','Otro'],
-      'Mampostería':['Albañil','Jefe de obra','Otro'],'Marcos y premarcos':['Carpintero','Jefe de obra','Otro'],
-      'Marmoles':['Marmolero','Jefe de obra','Otro'],'Metalúrgica':['Herrero','Jefe de obra','Otro'],
-      'Muebles':['Carpintero','Jefe de obra','Otro'],'Pintura':['Pintor','Jefe de obra','Otro'],
-      'Replanteo':['Jefe de obra','Otro'],'Revoque y Contrapiso':['Revocador','Jefe de obra','Otro'],
-      'Terminaciones':['Jefe de obra','Otro'],'Yeso':['Yesero','Jefe de obra','Otro'],
-      'Zócalos':['Carpintero','Jefe de obra','Otro'],
+      'Agua':                ['Plomero','Capataz','Otro'],
+      'Aire Acondicionado':  ['Subcontratista','Capataz','Otro'],
+      'Carpintería aluminio':['Subcontratista','Capataz','Otro'],
+      'Cerámico':            ['Ceramista','Capataz','Otro'],
+      'Cloaca y pluvial':    ['Plomero','Capataz','Otro'],
+      'Durlock':             ['Durlero','Capataz','Otro'],
+      'Electricidad':        ['Electricista','Capataz','Otro'],
+      'Estructura':          ['Puntero','Capataz','Otro'],
+      'Gas':                 ['Gasista','Capataz','Otro'],
+      'Incendio':            ['Subcontratista','Capataz','Otro'],
+      'Mampostería':         ['Albañil','Capataz','Otro'],
+      'Marcos y premarcos':  ['Subcontratista','Albañil','Capataz','Otro'],
+      'Marmoles':            ['Subcontratista','Capataz','Otro'],
+      'Metalúrgica':         ['Metalúrgico','Capataz','Otro'],
+      'Muebles':             ['Subcontratista','Capataz','Otro'],
+      'Pintura':             ['Pintor','Capataz','Otro'],
+      'Replanteo':           ['Albañil','Capataz','Otro'],
+      'Revoque y Contrapiso':['Subcontratista','Capataz','Otro'],
+      'Terminaciones':       ['Subcontratista','Capataz','Otro'],
+      'Yeso':                ['Subcontratista','Capataz','Otro'],
+      'Zócalos':             ['Subcontratista','Capataz','Otro'],
     };
 
     const app = initializeApp(firebaseConfig);
@@ -874,8 +884,12 @@
         }catch(e){console.error(e);errores++;}
       }
       btn.disabled=false;btn.textContent='✓ Certificar';
-      if(!errores)mostrarToast(`✓ ${noSync.length} observación/es certificadas`);
-      else alert(`Se certificaron ${noSync.length-errores} de ${noSync.length}.`);
+      if(!errores){
+        mostrarToast(`✓ ${noSync.length} observación/es certificadas`);
+        setTimeout(() => cerrarPestaña(pestañaActiva), 1500);
+      } else {
+        alert(`Se certificaron ${noSync.length-errores} de ${noSync.length}.`);
+      }
     });
 
     function mostrarToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.remove('oculto');t.classList.add('visible');setTimeout(()=>{t.classList.remove('visible');setTimeout(()=>t.classList.add('oculto'),300);},3000);}
