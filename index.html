@@ -449,7 +449,11 @@
             if (ch.type==='removed') delete estado.observaciones[ch.doc.id];
             else estado.observaciones[ch.doc.id] = { id: ch.doc.id, ...ch.doc.data() };
           });
-          if (pestañaActiva === plano.id) { renderizarMarcadores(); actualizarContadorObs(); }
+          if (pestañaActiva === plano.id) {
+            renderizarMarcadores();
+            actualizarContadorObs();
+            if (!document.getElementById('panel-lista-obs').classList.contains('oculto')) renderizarListaObs();
+          }
         }
       );
 
@@ -782,6 +786,54 @@
     function cerrarPanel() { document.getElementById('panel-obs').classList.remove('abierto'); setTimeout(()=>document.getElementById('panel-obs').classList.add('oculto'),300); const est=pestañaActual(); if(est) est.obsSeleccionada=null; }
     document.getElementById('btn-cerrar-panel').addEventListener('click', cerrarPanel);
 
+    // ─── PANEL LISTA DE OBSERVACIONES ─────────────────────────────────────────
+    document.getElementById('btn-lista-obs').addEventListener('click', () => {
+      renderizarListaObs();
+      document.getElementById('panel-lista-obs').classList.remove('oculto');
+      document.getElementById('panel-lista-obs').classList.add('abierto');
+    });
+
+    document.getElementById('btn-cerrar-lista-obs').addEventListener('click', () => {
+      document.getElementById('panel-lista-obs').classList.remove('abierto');
+      setTimeout(() => document.getElementById('panel-lista-obs').classList.add('oculto'), 300);
+    });
+
+    document.getElementById('lista-obs-filtro-estado').addEventListener('change', renderizarListaObs);
+
+    function renderizarListaObs() {
+      const est = pestañaActual(); if (!est) return;
+      const filtroEstado = document.getElementById('lista-obs-filtro-estado').value;
+      const cont = document.getElementById('lista-obs-items');
+
+      let obs = Object.values(est.observaciones).sort((a,b) => (a.numero||'').localeCompare(b.numero||''));
+      if (filtroEstado) obs = obs.filter(o => o.estado === filtroEstado);
+
+      if (obs.length === 0) {
+        cont.innerHTML = `<div class="empty-state" style="padding:40px 20px"><div class="empty-icon">📋</div><p>No hay observaciones${filtroEstado ? ' con ese estado' : ' en este plano'}.</p></div>`;
+        return;
+      }
+
+      cont.innerHTML = '';
+      obs.forEach(o => {
+        const item = document.createElement('div');
+        item.className = 'item-lista-obs';
+        item.innerHTML = `
+          <div class="item-lista-obs-header">
+            <span class="item-lista-obs-numero">${o.numero}</span>
+            <span class="badge-estado ${o.estado==='Resuelta'?'badge-resuelta':'badge-pendiente'}">${o.estado}</span>
+          </div>
+          <div class="item-lista-obs-rubro">${o.rubro}${o.responsable ? ' · '+o.responsable : ''}</div>
+          <div class="item-lista-obs-desc">${o.descripcion}</div>
+          <div class="item-lista-obs-meta">Pág. ${o.pagina} · Severidad: ${o.severidad}</div>
+        `;
+        item.addEventListener('click', () => {
+          document.getElementById('btn-cerrar-lista-obs').click();
+          setTimeout(() => abrirPanelObs(o.id), 200);
+        });
+        cont.appendChild(item);
+      });
+    }
+
     function limpiarFormulario() {
       document.getElementById('obs-rubro').value=''; document.getElementById('obs-responsable').value='';
       document.getElementById('obs-descripcion').value=''; document.getElementById('obs-severidad').value='Media';
@@ -1059,6 +1111,23 @@
     .btn-eliminar-foto:hover{background:rgba(255,79,79,0.1);border-color:var(--danger);}
     #panel-obs.modo-lectura select:disabled,#panel-obs.modo-lectura input:disabled,#panel-obs.modo-lectura textarea:disabled{opacity:0.75;cursor:default;background:var(--bg3);}
 
+    /* ── Panel lista de observaciones ── */
+    #panel-lista-obs{position:absolute;right:0;top:0;bottom:0;width:340px;background:var(--bg2);border-left:1px solid var(--border);display:flex;flex-direction:column;transform:translateX(100%);transition:transform 0.3s ease;z-index:11;box-shadow:-4px 0 20px rgba(0,0,0,0.3);}
+    #panel-lista-obs.abierto{transform:translateX(0);}
+    .lista-obs-filtros{padding:10px 16px;border-bottom:1px solid var(--border);flex-shrink:0;}
+    .lista-obs-filtros select{font-size:12px;padding:6px 8px;}
+    .lista-obs-items{gap:8px;}
+    .item-lista-obs{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;cursor:pointer;transition:border-color var(--trans);display:flex;flex-direction:column;gap:4px;}
+    .item-lista-obs:hover{border-color:var(--accent);}
+    .item-lista-obs-header{display:flex;justify-content:space-between;align-items:center;}
+    .item-lista-obs-numero{font-size:12px;font-weight:700;color:var(--accent2);}
+    .badge-estado{font-size:9px;padding:2px 8px;border-radius:20px;font-weight:600;text-transform:uppercase;letter-spacing:0.3px;}
+    .badge-pendiente{background:rgba(255,79,79,0.15);color:var(--pin-pend);}
+    .badge-resuelta{background:rgba(46,204,113,0.15);color:var(--success);}
+    .item-lista-obs-rubro{font-size:11px;color:var(--text2);font-weight:600;}
+    .item-lista-obs-desc{font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}
+    .item-lista-obs-meta{font-size:10px;color:var(--text3);}
+
     .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px;}
     .modal{background:var(--bg2);border:1px solid var(--border);border-radius:14px;width:480px;max-width:100%;max-height:80vh;display:flex;flex-direction:column;box-shadow:var(--shadow);}
     .modal-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-shrink:0;}
@@ -1084,6 +1153,8 @@
 
     @media(max-width:600px){
       #panel-obs{width:100%;max-width:360px;}
+      #panel-lista-obs{width:100%;max-width:360px;}
+      #btn-lista-obs span{display:none;}
       .login-card{width:100%;padding:24px 20px;}
       .user-texts{display:none;}
       .pestaña-nombre{max-width:80px;}
@@ -1188,6 +1259,7 @@
       <button id="btn-zoom-in" class="btn-pag">+</button>
       <div class="toolbar-sep"></div>
       <span id="contador-obs"></span>
+      <button id="btn-lista-obs">📋 Lista de obs.</button>
       <button id="btn-sincronizar">✓ Certificar</button>
       <button id="btn-nueva-obs">+ Nueva obs.</button>
     </div>
@@ -1199,6 +1271,21 @@
           <div id="pdf-spinner" class="oculto">Cargando plano...</div>
         </div>
       </div>
+      <div id="panel-lista-obs" class="oculto">
+        <div class="panel-header">
+          <h3>Observaciones del plano</h3>
+          <button id="btn-cerrar-lista-obs" class="btn-cerrar-panel">✕</button>
+        </div>
+        <div class="lista-obs-filtros">
+          <select id="lista-obs-filtro-estado">
+            <option value="">Todos los estados</option>
+            <option value="Pendiente">Pendientes</option>
+            <option value="Resuelta">Resueltas</option>
+          </select>
+        </div>
+        <div id="lista-obs-items" class="panel-body lista-obs-items"></div>
+      </div>
+
       <div id="panel-obs" class="oculto">
         <div class="panel-header"><h3 id="panel-titulo">Nueva observación</h3><button id="btn-cerrar-panel" class="btn-cerrar-panel">✕</button></div>
         <div class="panel-body">
