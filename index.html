@@ -1007,9 +1007,10 @@ async function generarInformePDF(est) {
     if (!doc) doc = new jsPDF({ orientation: orientacion, unit: 'pt', format: 'a4' });
     else doc.addPage('a4', orientacion);
 
-    const margen = 28;
-    const anchoUtil = doc.internal.pageSize.getWidth() - margen*2;
-    const altoImg = anchoUtil * (canvas.height / canvas.width);
+const margen = 28;
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const anchoUtil = pageW - margen*2;
 
     let y = margen;
     doc.setFontSize(13); doc.setFont(undefined,'bold');
@@ -1020,7 +1021,15 @@ async function generarInformePDF(est) {
     doc.setTextColor(0);
     y += 12;
 
-    doc.addImage(imgData, 'JPEG', margen, y, anchoUtil, altoImg);
+    // La imagen nunca puede pasarse de la hoja: la acotamos por ancho Y por alto disponible.
+    // Dejamos 60pt de margen inferior para que al menos entre el encabezado de la tabla debajo.
+    const altoMaxImagen = pageH - y - margen - 60;
+    const altoPorAncho  = anchoUtil * (canvas.height / canvas.width);
+    const altoImg = Math.min(altoPorAncho, altoMaxImagen);
+    const anchoImg = altoImg * (canvas.width / canvas.height);
+    const xImg = margen + (anchoUtil - anchoImg) / 2; // centrada si quedó más angosta que el ancho útil
+
+    doc.addImage(imgData, 'JPEG', xImg, y, anchoImg, altoImg);
     y += altoImg + 16;
 
     const filas = obsPagina.map(o => [
