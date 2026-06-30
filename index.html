@@ -968,9 +968,27 @@
     document.getElementById('btn-imprimir-informe').addEventListener('click', async () => {
       const est = pestañaActual(); if (!est?.pdfDoc) return;
       const btn = document.getElementById('btn-imprimir-informe');
+
+      // Se abre YA, antes de cualquier await — si se abre después, el navegador la bloquea como pop-up.
+      const ventana = window.open('', '_blank');
+
       btn.disabled = true; btn.textContent = 'Generando...';
-      try { await generarInformePDF(est); }
-      catch(e) { console.error(e); alert('Error al generar el informe.'); }
+      try {
+        const blob = await generarInformePDF(est);
+        if (!ventana) {
+          alert('El navegador bloqueó la ventana emergente. Habilitá pop-ups para este sitio y volvé a intentar.');
+          return;
+        }
+        const url = URL.createObjectURL(blob);
+        ventana.location.href = url;
+        // Liberamos el blob recién después de un rato — si lo liberamos al toque, el visor
+        // puede quedarse sin poder cargar el archivo.
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+      }
+      catch(e) {
+        console.error(e); alert('Error al generar el informe.');
+        if (ventana) ventana.close();
+      }
       finally { btn.disabled = false; btn.innerHTML = ICONO_INFORME; }
     });
 
@@ -1018,7 +1036,10 @@
         const imgData = canvas.toDataURL('image/jpeg', 0.85);
         const orientacion = canvas.width > canvas.height ? 'l' : 'p';
 
-        if (!doc) doc = new jsPDF({ orientation: orientacion, unit: 'pt', format: 'a4' });
+        if (!doc) {
+          doc = new jsPDF({ orientation: orientacion, unit: 'pt', format: 'a4' });
+          doc.setProperties({ title: `Informe_${est.plano.nombre.replace(/[^\w\-]+/g,'_')}_${new Date().toISOString().slice(0,10)}` });
+        }
         else doc.addPage('a4', orientacion);
 
         const margen = 28;
@@ -1067,7 +1088,7 @@
         }
       }
 
-      doc.save(`Informe_${est.plano.nombre.replace(/[^\w\-]+/g,'_')}_${new Date().toISOString().slice(0,10)}.pdf`);
+      return doc.output('blob');
     }
 
     function mostrarToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.remove('oculto');t.classList.add('visible');setTimeout(()=>{t.classList.remove('visible');setTimeout(()=>t.classList.add('oculto'),300);},3000);}
