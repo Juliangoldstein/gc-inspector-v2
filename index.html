@@ -965,31 +965,26 @@
     });
 
     // ─── INFORME PDF ──────────────────────────────────────────────────────────
+    let blobUrlInformeActual = null;
+
     document.getElementById('btn-imprimir-informe').addEventListener('click', async () => {
       const est = pestañaActual(); if (!est?.pdfDoc) return;
       const btn = document.getElementById('btn-imprimir-informe');
-
-      // Se abre YA, antes de cualquier await — si se abre después, el navegador la bloquea como pop-up.
-      const ventana = window.open('', '_blank');
-
       btn.disabled = true; btn.textContent = 'Generando...';
       try {
         const blob = await generarInformePDF(est);
-        if (!ventana) {
-          alert('El navegador bloqueó la ventana emergente. Habilitá pop-ups para este sitio y volvé a intentar.');
-          return;
-        }
-        const url = URL.createObjectURL(blob);
-        ventana.location.href = url;
-        // Liberamos el blob recién después de un rato — si lo liberamos al toque, el visor
-        // puede quedarse sin poder cargar el archivo.
-        setTimeout(() => URL.revokeObjectURL(url), 60000);
+        blobUrlInformeActual = URL.createObjectURL(blob);
+        document.getElementById('iframe-informe').src = blobUrlInformeActual;
+        document.getElementById('modal-informe').classList.remove('oculto');
       }
-      catch(e) {
-        console.error(e); alert('Error al generar el informe.');
-        if (ventana) ventana.close();
-      }
+      catch(e) { console.error(e); alert('Error al generar el informe.'); }
       finally { btn.disabled = false; btn.innerHTML = ICONO_INFORME; }
+    });
+
+    document.getElementById('btn-cerrar-modal-informe').addEventListener('click', () => {
+      document.getElementById('modal-informe').classList.add('oculto');
+      document.getElementById('iframe-informe').src = '';
+      if (blobUrlInformeActual) { URL.revokeObjectURL(blobUrlInformeActual); blobUrlInformeActual = null; }
     });
 
     async function generarInformePDF(est) {
@@ -1020,7 +1015,7 @@
 
         // Pines sobre el canvas offscreen — tamaño proporcional al canvas (que ahora
         // siempre tiene el mismo ancho fijo), no en píxeles fijos.
-        const radioPin = canvas.width * 0.018;
+        const radioPin = canvas.width * 0.0135;
         const fontPin  = radioPin * 0.9;
         obsPagina.forEach(obs => {
           const px = obs.x * canvas.width, py = obs.y * canvas.height;
@@ -1278,6 +1273,9 @@
 
     .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px;}
     .modal{background:var(--bg2);border:1px solid var(--border);border-radius:14px;width:480px;max-width:100%;max-height:80vh;display:flex;flex-direction:column;box-shadow:var(--shadow);}
+    .modal-informe{width:95vw;max-width:1000px;height:92vh;max-height:92vh;}
+    .modal-body-informe{padding:0;flex:1;overflow:hidden;}
+    #iframe-informe{width:100%;height:100%;border:none;display:block;}
     .modal-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-shrink:0;}
     .modal-header h3{font-size:15px;font-weight:700;}
     .modal-body{flex:1;overflow-y:auto;padding:16px 20px;}
@@ -1385,6 +1383,13 @@
     <div class="modal">
       <div class="modal-header"><h3>Gestión de usuarios</h3><button id="btn-cerrar-modal-usuarios" class="btn-cerrar-modal">✕</button></div>
       <div class="modal-body"><div id="lista-usuarios"></div></div>
+    </div>
+  </div>
+
+  <div id="modal-informe" class="modal-overlay oculto">
+    <div class="modal modal-informe">
+      <div class="modal-header"><h3>Informe</h3><button id="btn-cerrar-modal-informe" class="btn-cerrar-modal">✕</button></div>
+      <div class="modal-body modal-body-informe"><iframe id="iframe-informe"></iframe></div>
     </div>
   </div>
 
