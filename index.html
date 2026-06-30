@@ -977,7 +977,13 @@
 
       for (let num = 1; num <= numPaginas; num++) {
         const page = await est.pdfDoc.getPage(num);
-        const vp = page.getViewport({ scale: est.baseScale }); // escala fija, no la del zoom actual
+
+        // Resolución FIJA para el informe — no depende del ancho de pantalla del dispositivo
+        // que abrió el plano (eso es lo que hacía que el plano y los pines salieran
+        // de tamaño relativo distinto según si se generaba desde celular o compu).
+        const ANCHO_INFORME = 1600;
+        const vp0 = page.getViewport({ scale: 1 });
+        const vp  = page.getViewport({ scale: ANCHO_INFORME / vp0.width });
 
         // Render offscreen — no toca el canvas visible
         const canvas = document.createElement('canvas');
@@ -990,14 +996,17 @@
           .filter(o => o.pagina === num)
           .sort((a,b) => (a.numero||'').localeCompare(b.numero||''));
 
-        // Pines sobre el canvas offscreen
+        // Pines sobre el canvas offscreen — tamaño proporcional al canvas (que ahora
+        // siempre tiene el mismo ancho fijo), no en píxeles fijos.
+        const radioPin = canvas.width * 0.0135;
+        const fontPin  = radioPin * 0.9;
         obsPagina.forEach(obs => {
           const px = obs.x * canvas.width, py = obs.y * canvas.height;
           const color = obs.estado === 'Resuelta' ? '#2ecc71' : '#ff4f4f';
-          ctx.beginPath(); ctx.arc(px, py, 14, 0, Math.PI*2);
+          ctx.beginPath(); ctx.arc(px, py, radioPin, 0, Math.PI*2);
           ctx.fillStyle = color; ctx.fill();
-          ctx.lineWidth = 2; ctx.strokeStyle = '#fff'; ctx.stroke();
-          ctx.fillStyle = '#fff'; ctx.font = 'bold 13px sans-serif';
+          ctx.lineWidth = radioPin * 0.14; ctx.strokeStyle = '#fff'; ctx.stroke();
+          ctx.fillStyle = '#fff'; ctx.font = `bold ${fontPin}px sans-serif`;
           ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
           ctx.fillText((obs.numero||'?').replace(/^OBS-0*/,'') || '0', px, py);
         });
