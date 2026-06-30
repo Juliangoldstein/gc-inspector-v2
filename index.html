@@ -297,16 +297,16 @@
       const bloques     = [...new Set(planosCruzados('bloque').map(p => p.bloque).filter(Boolean))].sort();
       const deptos      = [...new Set(planosCruzados('depto').map(p => p.depto).filter(Boolean))].sort();
 
-      llenarSelect('filtro-disciplina', disciplinas, 'Disciplina');
-      llenarSelect('filtro-nivel',      niveles,     'Nivel');
-      llenarSelect('filtro-bloque',     bloques,     'Bloque');
-      llenarSelect('filtro-depto',      deptos,      'Depto.');
+      llenarSelect('filtro-disciplina', disciplinas);
+      llenarSelect('filtro-nivel',      niveles);
+      llenarSelect('filtro-bloque',     bloques);
+      llenarSelect('filtro-depto',      deptos);
     }
 
-    function llenarSelect(id, opciones, etiqueta) {
+    function llenarSelect(id, opciones) {
       const sel   = document.getElementById(id);
       const prev  = sel.value;
-      sel.innerHTML = `<option value="">${etiqueta}</option>`;
+      sel.innerHTML = '<option value="">Todos</option>';
       opciones.forEach(o => {
         const opt = document.createElement('option');
         opt.value = o; opt.textContent = o;
@@ -314,7 +314,7 @@
       });
       // Si la opción que tenía elegida ya no es válida con el cruce actual de filtros
       // (ej: "Torre" deja de existir al filtrar por un nivel donde no hay Torre), se
-      // limpia sola y vuelve a mostrar la etiqueta — no queda un filtro "fantasma" aplicado.
+      // limpia sola y vuelve a "Todos" — no queda un filtro "fantasma" aplicado.
       if (prev && opciones.includes(prev)) sel.value = prev;
     }
 
@@ -1221,9 +1221,11 @@
     .filtros-bar{display:flex;flex-direction:column;gap:8px;margin-bottom:16px;}
     .filtro-busqueda{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:9px 12px;font-size:13px;color:var(--text);width:100%;outline:none;}
     .filtro-busqueda:focus{border-color:var(--accent);}
-    .filtros-selects{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
-    .filtros-selects select{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:7px 10px;font-size:12px;color:var(--text);flex:1;min-width:110px;cursor:pointer;}
-    .filtros-selects select:focus{border-color:var(--accent);}
+    .filtros-selects{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;}
+    .campo-filtro{display:flex;flex-direction:column;gap:3px;flex:1;min-width:110px;}
+    .campo-filtro label{font-size:10px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:0.4px;padding-left:1px;}
+    .campo-filtro select{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:7px 10px;font-size:12px;color:var(--text);width:100%;cursor:pointer;}
+    .campo-filtro select:focus{border-color:var(--accent);}
     .btn-limpiar{background:transparent;color:var(--text2);padding:7px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);font-size:12px;white-space:nowrap;flex-shrink:0;}
     .btn-limpiar:hover{color:var(--danger);border-color:var(--danger);}
     .lista-planos{display:flex;flex-direction:column;gap:10px;}
@@ -1423,10 +1425,10 @@
       <div class="filtros-bar">
         <input type="text" id="filtro-busqueda" placeholder="🔍 Buscar plano..." class="filtro-busqueda">
         <div class="filtros-selects">
-          <select id="filtro-disciplina"><option value="">Disciplina</option></select>
-          <select id="filtro-nivel"><option value="">Nivel</option></select>
-          <select id="filtro-bloque"><option value="">Bloque</option></select>
-          <select id="filtro-depto"><option value="">Depto.</option></select>
+          <div class="campo-filtro"><label>Disciplina</label><select id="filtro-disciplina"><option value="">Todos</option></select></div>
+          <div class="campo-filtro"><label>Nivel</label><select id="filtro-nivel"><option value="">Todos</option></select></div>
+          <div class="campo-filtro"><label>Bloque</label><select id="filtro-bloque"><option value="">Todos</option></select></div>
+          <div class="campo-filtro"><label>Depto.</label><select id="filtro-depto"><option value="">Todos</option></select></div>
           <button id="btn-limpiar-filtros" class="btn-limpiar">✕ Limpiar</button>
         </div>
       </div>
