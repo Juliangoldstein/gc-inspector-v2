@@ -964,30 +964,13 @@
     document.getElementById('btn-imprimir-informe').addEventListener('click', async () => {
       const est = pestañaActual(); if (!est?.pdfDoc) return;
       const btn = document.getElementById('btn-imprimir-informe');
-
-      const horizontal = confirm('¿Orientación horizontal (apaisada)?\n\nAceptar = Horizontal\nCancelar = Vertical');
-      const orientacion = horizontal ? 'l' : 'p';
-
-      // Se abre YA, antes de cualquier await — si se abre después, el navegador la bloquea como pop-up.
-      const ventana = window.open('', '_blank');
-
       btn.disabled = true; btn.textContent = 'Generando...';
-      try {
-        const blobUrl = await generarInformePDF(est, orientacion);
-        if (!ventana) {
-          alert('El navegador bloqueó la ventana emergente. Habilitá pop-ups para este sitio y volvé a intentar.');
-          return;
-        }
-        ventana.location.href = blobUrl;
-        // Le damos tiempo al visor de PDF a cargar antes de abrir el diálogo de impresión.
-        setTimeout(() => { try { ventana.focus(); ventana.print(); } catch(e) {} }, 700);
-      } catch(e) {
-        console.error(e); alert('Error al generar el informe.');
-        if (ventana) ventana.close();
-      } finally { btn.disabled = false; btn.textContent = '🖨️ Informe'; }
+      try { await generarInformePDF(est); }
+      catch(e) { console.error(e); alert('Error al generar el informe.'); }
+      finally { btn.disabled = false; btn.textContent = '🖨 Informe'; }
     });
 
-    async function generarInformePDF(est, orientacion) {
+    async function generarInformePDF(est) {
       const { jsPDF } = window.jspdf;
       const numPaginas = est.pdfDoc.numPages;
       let doc = null;
@@ -1020,6 +1003,7 @@
         });
 
         const imgData = canvas.toDataURL('image/jpeg', 0.85);
+        const orientacion = canvas.width > canvas.height ? 'l' : 'p';
 
         if (!doc) doc = new jsPDF({ orientation: orientacion, unit: 'pt', format: 'a4' });
         else doc.addPage('a4', orientacion);
@@ -1070,7 +1054,7 @@
         }
       }
 
-      return doc.output('bloburl');
+      doc.save(`Informe_${est.plano.nombre.replace(/[^\w\-]+/g,'_')}_${new Date().toISOString().slice(0,10)}.pdf`);
     }
 
     function mostrarToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.remove('oculto');t.classList.add('visible');setTimeout(()=>{t.classList.remove('visible');setTimeout(()=>t.classList.add('oculto'),300);},3000);}
