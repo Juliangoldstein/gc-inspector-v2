@@ -36,6 +36,10 @@
     const APPS_SCRIPT_URL       = 'https://script.google.com/macros/s/AKfycbxBMLwyI4TL8pERW9KyWaVca5lz5EK0fBDGscGyefxUPhZA_4H_tGaQ7lGTShLILnGYIg/exec';
     const OBRA_NOMBRE           = 'Catamarán 12';
 
+    // Íconos reutilizables para restaurar el contenido de los botones tras un estado de carga
+    const ICONO_CERTIFICAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span>Certificar</span>';
+    const ICONO_INFORME    = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg><span>Ver informe</span>';
+
     // ─── NOMENCLATURA DE PLANOS ──────────────────────────────────────────────
     const DISCIPLINAS = {
       '01': 'Mov. de suelo', '02': 'Replanteo', '03': 'Estructura',
@@ -951,7 +955,7 @@
           if(res.ok)await updateDoc(doc(db,'observaciones',obs.id),{sincronizadoSheet:true});else errores++;
         }catch(e){console.error(e);errores++;}
       }
-      btn.disabled=false;btn.textContent='✓ Certificar';
+      btn.disabled=false;btn.innerHTML=ICONO_CERTIFICAR;
       if(!errores){
         mostrarToast(`✓ ${noSync.length} observación/es certificadas`);
         setTimeout(() => cerrarPestaña(pestañaActiva), 1500);
@@ -967,7 +971,7 @@
       btn.disabled = true; btn.textContent = 'Generando...';
       try { await generarInformePDF(est); }
       catch(e) { console.error(e); alert('Error al generar el informe.'); }
-      finally { btn.disabled = false; btn.textContent = '🖨 Informe'; }
+      finally { btn.disabled = false; btn.innerHTML = ICONO_INFORME; }
     });
 
     async function generarInformePDF(est) {
@@ -1032,8 +1036,13 @@
         y += 12;
 
         // La imagen nunca puede pasarse de la hoja: la acotamos por ancho Y por alto disponible.
-        // Dejamos 60pt de margen inferior para que al menos entre el encabezado de la tabla debajo.
-        const altoMaxImagen = pageH - y - margen - 60;
+        // Reservamos lugar para que entren el encabezado de la tabla + 4 filas debajo de la imagen
+        // (con fontSize:8 y cellPadding:4, cada fila de la tabla ocupa ~18pt). Si hay más de 4
+        // observaciones, las filas extra pasan solas a la hoja siguiente (autoTable se encarga).
+        const ALTO_FILA_TABLA = 18;
+        const FILAS_GARANTIZADAS = 4;
+        const altoReservadoTabla = ALTO_FILA_TABLA * (FILAS_GARANTIZADAS + 1); // +1 = encabezado
+        const altoMaxImagen = pageH - y - margen - altoReservadoTabla;
         const altoPorAncho  = anchoUtil * (canvas.height / canvas.width);
         const altoImg = Math.min(altoPorAncho, altoMaxImagen);
         const anchoImg = altoImg * (canvas.width / canvas.height);
@@ -1188,6 +1197,8 @@
     #btn-imprimir-informe:disabled{opacity:0.5;cursor:default;}
     #btn-lista-obs{background:var(--bg3);color:var(--text);padding:7px 14px;border-radius:var(--radius-sm);border:1px solid var(--border);}
     #btn-lista-obs:hover{background:var(--border);}
+    .btn-icono-texto{display:inline-flex;align-items:center;gap:6px;}
+    .btn-icono-texto svg{width:14px;height:14px;flex-shrink:0;}
     #contador-obs{font-size:12px;color:var(--text2);white-space:nowrap;}
 
     .inspector-body{flex:1;overflow:hidden;position:relative;}
@@ -1275,7 +1286,7 @@
     @media(max-width:600px){
       #panel-obs{width:100%;max-width:360px;}
       #panel-lista-obs{width:100%;max-width:360px;}
-      #btn-lista-obs span{display:none;}
+      .btn-icono-texto span{display:none;}
       .login-card{width:100%;padding:24px 20px;}
       .user-texts{display:none;}
       .pestaña-nombre{max-width:80px;}
@@ -1380,9 +1391,18 @@
       <button id="btn-zoom-in" class="btn-pag">+</button>
       <div class="toolbar-sep"></div>
       <span id="contador-obs"></span>
-      <button id="btn-lista-obs">📋 Lista de obs.</button>
-      <button id="btn-sincronizar">✓ Certificar</button>
-      <button id="btn-imprimir-informe">🖨 Informe</button>
+      <button id="btn-imprimir-informe" class="btn-icono-texto">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+        <span>Ver informe</span>
+      </button>
+      <button id="btn-sincronizar" class="btn-icono-texto">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <span>Certificar</span>
+      </button>
+      <button id="btn-lista-obs" class="btn-icono-texto">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        <span>Lista de obs.</span>
+      </button>
       <button id="btn-nueva-obs">+ Nueva obs.</button>
     </div>
     <div class="inspector-body">
