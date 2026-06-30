@@ -8,6 +8,32 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/png" href="favicon-final-32.png">
   <link rel="apple-touch-icon" href="icon-192.png">
+  <!-- CSP: limita qué dominios pueden cargar scripts/conectarse, lo cual mitiga el
+       riesgo del punto 5 (CDN comprometido cargando código ajeno) y acota a qué
+       endpoints puede hablar la app. ⚠️ Nota honesta: como este archivo es un único
+       HTML con toda la lógica en un <script> inline (no hay build con nonces/hashes),
+       script-src necesita 'unsafe-inline' para que la app funcione — eso significa que
+       la CSP NO bloquea por sí sola el patrón onerror="..."/onclick="..." inyectado vía
+       innerHTML. La protección real contra eso la dan los escapeHtml() agregados abajo;
+       la CSP es una capa extra, no el único mecanismo. Para CSP "fuerte" de verdad haría
+       falta separar el script a un archivo .js externo y usar nonce o hash — lo dejamos
+       como mejora futura, fuera del alcance de este parche. -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://www.gstatic.com;
+    style-src 'self' 'unsafe-inline';
+    img-src 'self' data: blob: https://*.googleusercontent.com https://firebasestorage.googleapis.com;
+    connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://api.dropboxapi.com https://api.dropbox.com https://content.dropboxapi.com https://script.google.com https://*.firebasestorage.app;
+    frame-src 'self' blob:;
+    object-src 'none';
+    base-uri 'self';
+  ">
+  <!-- ⚠️ TODO (no aplicado acá a propósito): pdf.js 3.11.174 tiene CVE-2024-4367
+       (ejecución de JS arbitrario al abrir un PDF malicioso). La 4.x corrige esto,
+       pero pasó a ser ESM-only y rompe el global `pdfjsLib` que usa todo este archivo
+       (getDocument, GlobalWorkerOptions, etc.) — requiere reescribir esa parte y
+       PROBAR la carga/zoom/paneo de planos antes de subir a producción. Lo dejamos
+       para un cambio separado y testeado, no mezclado con este parche de seguridad. -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
@@ -107,6 +133,22 @@
       'Yeso':                ['Subcontratista','Capataz','Otro'],
       'Zócalos':             ['Subcontratista','Capataz','Otro'],
     };
+
+    // ─── SEGURIDAD: escape de HTML ───────────────────────────────────────────
+    // Cualquier dato que venga de Firestore, Dropbox o de lo que tipeó un usuario
+    // (nombre de plano, descripción de obs, nombre de usuario, etc.) pasa por acá
+    // antes de insertarse con innerHTML. Sin esto, alguien podría meter
+    // <img src=x onerror=...> en una descripción y ejecutar JS en el navegador
+    // de cualquiera que vea esa observación.
+    function escapeHtml(str) {
+      if (str === null || str === undefined) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
 
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
@@ -355,16 +397,16 @@
 
       // Construir badges de metadata
       const badges = [];
-      if (plano.disciplina) badges.push(`<span class="badge-plano">${plano.disciplina}</span>`);
-      if (plano.nivel)      badges.push(`<span class="badge-plano">${plano.nivel}</span>`);
-      if (plano.bloque)     badges.push(`<span class="badge-plano">${plano.bloque}</span>`);
-      if (plano.depto)      badges.push(`<span class="badge-plano">Depto. ${plano.depto}</span>`);
+      if (plano.disciplina) badges.push(`<span class="badge-plano">${escapeHtml(plano.disciplina)}</span>`);
+      if (plano.nivel)      badges.push(`<span class="badge-plano">${escapeHtml(plano.nivel)}</span>`);
+      if (plano.bloque)     badges.push(`<span class="badge-plano">${escapeHtml(plano.bloque)}</span>`);
+      if (plano.depto)      badges.push(`<span class="badge-plano">Depto. ${escapeHtml(plano.depto)}</span>`);
 
       div.innerHTML = `
         <div class="plano-info">
           <div class="plano-icono">📄</div>
           <div class="plano-datos">
-            <div class="plano-nombre">${plano.nombre}</div>
+            <div class="plano-nombre">${escapeHtml(plano.nombre)}</div>
             <div class="plano-badges">${badges.join('') || ''}</div>
             <div class="plano-meta">${plano.paginas||1} página${(plano.paginas||1)>1?'s':''}</div>
           </div>
@@ -403,8 +445,8 @@
           const v = document.createElement('div'); v.className='item-dropbox item-volver'; v.innerHTML='<span>← Volver</span>';
           v.addEventListener('click', () => { dropboxNavPath = dropboxNavStack.pop(); mostrarModalDropbox(); }); lista.appendChild(v);
         }
-        carpetas.forEach(c => { const d=document.createElement('div'); d.className='item-dropbox item-carpeta'; d.innerHTML=`<span>📁 ${c.name}</span><span class="item-arrow">›</span>`; d.addEventListener('click',()=>{dropboxNavStack.push(dropboxNavPath);dropboxNavPath=c.path_lower;mostrarModalDropbox();}); lista.appendChild(d); });
-        pdfs.forEach(f => { const d=document.createElement('div'); d.className='item-dropbox'; d.innerHTML=`<span>📄 ${f.name}</span><button class="btn-seleccionar">Seleccionar</button>`; d.querySelector('.btn-seleccionar').addEventListener('click',()=>{seleccionarDropbox(f);modal.classList.add('oculto');}); lista.appendChild(d); });
+        carpetas.forEach(c => { const d=document.createElement('div'); d.className='item-dropbox item-carpeta'; d.innerHTML=`<span>📁 ${escapeHtml(c.name)}</span><span class="item-arrow">›</span>`; d.addEventListener('click',()=>{dropboxNavStack.push(dropboxNavPath);dropboxNavPath=c.path_lower;mostrarModalDropbox();}); lista.appendChild(d); });
+        pdfs.forEach(f => { const d=document.createElement('div'); d.className='item-dropbox'; d.innerHTML=`<span>📄 ${escapeHtml(f.name)}</span><button class="btn-seleccionar">Seleccionar</button>`; d.querySelector('.btn-seleccionar').addEventListener('click',()=>{seleccionarDropbox(f);modal.classList.add('oculto');}); lista.appendChild(d); });
         if (!carpetas.length && !pdfs.length) lista.innerHTML += '<p style="color:var(--text2);padding:12px 0">Carpeta vacía</p>';
       } catch(e) { lista.innerHTML='<p style="color:var(--danger)">Error al conectar con Dropbox.</p>'; console.error(e); }
     }
@@ -546,7 +588,7 @@
         const tab = document.createElement('div');
         tab.className = `pestaña ${planoId === pestañaActiva ? 'activa' : ''}`;
         tab.innerHTML = `
-          <span class="pestaña-nombre">${estado.plano.nombre}</span>
+          <span class="pestaña-nombre">${escapeHtml(estado.plano.nombre)}</span>
           <button class="pestaña-cerrar" data-id="${planoId}">✕</button>
         `;
         tab.addEventListener('click', (e) => {
@@ -851,12 +893,12 @@
         item.className = 'item-lista-obs';
         item.innerHTML = `
           <div class="item-lista-obs-header">
-            <span class="item-lista-obs-numero">${o.numero}</span>
-            <span class="badge-estado ${o.estado==='Resuelta'?'badge-resuelta':'badge-pendiente'}">${o.estado}</span>
+            <span class="item-lista-obs-numero">${escapeHtml(o.numero)}</span>
+            <span class="badge-estado ${o.estado==='Resuelta'?'badge-resuelta':'badge-pendiente'}">${escapeHtml(o.estado)}</span>
           </div>
-          <div class="item-lista-obs-rubro">${o.rubro}${o.responsable ? ' · '+o.responsable : ''}</div>
-          <div class="item-lista-obs-desc">${o.descripcion}</div>
-          <div class="item-lista-obs-meta">Pág. ${o.pagina} · Severidad: ${o.severidad}</div>
+          <div class="item-lista-obs-rubro">${escapeHtml(o.rubro)}${o.responsable ? ' · '+escapeHtml(o.responsable) : ''}</div>
+          <div class="item-lista-obs-desc">${escapeHtml(o.descripcion)}</div>
+          <div class="item-lista-obs-meta">Pág. ${o.pagina} · Severidad: ${escapeHtml(o.severidad)}</div>
         `;
         item.addEventListener('click', () => {
           document.getElementById('btn-cerrar-lista-obs').click();
@@ -1160,7 +1202,7 @@
       const snap=await getDocs(collection(db,'usuarios'));lista.innerHTML='';
       snap.forEach(d=>{
         const u={id:d.id,...d.data()};const div=document.createElement('div');div.className='item-usuario';
-        div.innerHTML=`<div class="usuario-info"><div class="usuario-nombre">${u.nombre||u.email}</div><div class="usuario-email">${u.email}</div></div><div class="usuario-acciones"><select class="sel-rol" data-uid="${u.id}" style="width:90px;padding:5px 6px;font-size:11px;"><option value="lector" ${u.rol==='lector'?'selected':''}>Lector</option><option value="inspector" ${u.rol==='inspector'?'selected':''}>Inspector</option><option value="admin" ${u.rol==='admin'?'selected':''}>Admin</option></select><button class="btn-toggle-auth ${u.autorizado?'activo':''}" data-uid="${u.id}" data-auth="${u.autorizado}">${u.autorizado?'✓ Autorizado':'Autorizar'}</button></div>`;
+        div.innerHTML=`<div class="usuario-info"><div class="usuario-nombre">${escapeHtml(u.nombre||u.email)}</div><div class="usuario-email">${escapeHtml(u.email)}</div></div><div class="usuario-acciones"><select class="sel-rol" data-uid="${u.id}" style="width:90px;padding:5px 6px;font-size:11px;"><option value="lector" ${u.rol==='lector'?'selected':''}>Lector</option><option value="inspector" ${u.rol==='inspector'?'selected':''}>Inspector</option><option value="admin" ${u.rol==='admin'?'selected':''}>Admin</option></select><button class="btn-toggle-auth ${u.autorizado?'activo':''}" data-uid="${u.id}" data-auth="${u.autorizado}">${u.autorizado?'✓ Autorizado':'Autorizar'}</button></div>`;
         div.querySelector('.btn-toggle-auth').addEventListener('click',async e=>{const b=e.currentTarget;await updateDoc(doc(db,'usuarios',b.dataset.uid),{autorizado:b.dataset.auth!=='true'});cargarPanelUsuarios();});
         const rs=div.querySelector('.sel-rol');if(rs)rs.addEventListener('change',async e=>{await updateDoc(doc(db,'usuarios',e.currentTarget.dataset.uid),{rol:e.currentTarget.value});});
         lista.appendChild(div);
