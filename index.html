@@ -960,8 +960,6 @@
       }
     });
 
-    function mostrarToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.remove('oculto');t.classList.add('visible');setTimeout(()=>{t.classList.remove('visible');setTimeout(()=>t.classList.add('oculto'),300);},3000);}
-
     // ─── INFORME PDF ──────────────────────────────────────────────────────────
     document.getElementById('btn-imprimir-informe').addEventListener('click', async () => {
       const est = pestañaActual(); if (!est?.pdfDoc) return;
@@ -1074,6 +1072,8 @@
 
       return doc.output('bloburl');
     }
+
+    function mostrarToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.remove('oculto');t.classList.add('visible');setTimeout(()=>{t.classList.remove('visible');setTimeout(()=>t.classList.add('oculto'),300);},3000);}
 
     // ─── USUARIOS ─────────────────────────────────────────────────────────────
     document.getElementById('btn-usuarios').addEventListener('click', async ()=>{if(currentUserData?.rol!=='admin')return;await cargarPanelUsuarios();document.getElementById('modal-usuarios').classList.remove('oculto');});
@@ -1190,6 +1190,9 @@
     #btn-nueva-obs:hover{background:var(--accent2);}#btn-nueva-obs.activo{background:var(--danger);color:#fff;}
     #btn-sincronizar{background:var(--bg3);color:var(--text);padding:7px 14px;border-radius:var(--radius-sm);border:1px solid var(--border);}
     #btn-sincronizar:hover{background:var(--border);}
+    #btn-imprimir-informe{background:var(--bg3);color:var(--text);padding:7px 14px;border-radius:var(--radius-sm);border:1px solid var(--border);}
+    #btn-imprimir-informe:hover{background:var(--border);}
+    #btn-imprimir-informe:disabled{opacity:0.5;cursor:default;}
     #btn-lista-obs{background:var(--bg3);color:var(--text);padding:7px 14px;border-radius:var(--radius-sm);border:1px solid var(--border);}
     #btn-lista-obs:hover{background:var(--border);}
     #contador-obs{font-size:12px;color:var(--text2);white-space:nowrap;}
@@ -1386,7 +1389,7 @@
       <span id="contador-obs"></span>
       <button id="btn-lista-obs">📋 Lista de obs.</button>
       <button id="btn-sincronizar">✓ Certificar</button>
-      <button id="btn-imprimir-informe">🖨️ Informe</button>
+      <button id="btn-imprimir-informe">🖨 Informe</button>
       <button id="btn-nueva-obs">+ Nueva obs.</button>
     </div>
     <div class="inspector-body">
