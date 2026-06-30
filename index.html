@@ -1017,15 +1017,53 @@
         // siempre tiene el mismo ancho fijo), no en píxeles fijos.
         const radioPin = canvas.width * 0.017;
         const fontPin  = radioPin * 0.9;
-        obsPagina.forEach(obs => {
-          const px = obs.x * canvas.width, py = obs.y * canvas.height;
+
+        // Posición real (ancla) y posición de dibujo (puede separarse si hay solapamiento)
+        const posiciones = obsPagina.map(obs => ({
+          obs,
+          ox: obs.x * canvas.width, oy: obs.y * canvas.height,
+          x:  obs.x * canvas.width, y:  obs.y * canvas.height,
+        }));
+
+        // Si dos pines quedan más cerca que esta distancia, se empujan entre sí hasta separarse.
+        // Varias pasadas porque mover un par puede generar un nuevo solapamiento con un tercero.
+        const distanciaMinima = radioPin * 2.3;
+        for (let iter = 0; iter < 60; iter++) {
+          let movioAlguno = false;
+          for (let i = 0; i < posiciones.length; i++) {
+            for (let j = i + 1; j < posiciones.length; j++) {
+              const a = posiciones[i], b = posiciones[j];
+              const dx = b.x - a.x, dy = b.y - a.y;
+              const dist = Math.hypot(dx, dy) || 0.01;
+              if (dist < distanciaMinima) {
+                const empuje = (distanciaMinima - dist) / 2;
+                const ux = dx / dist, uy = dy / dist;
+                a.x -= ux * empuje; a.y -= uy * empuje;
+                b.x += ux * empuje; b.y += uy * empuje;
+                movioAlguno = true;
+              }
+            }
+          }
+          if (!movioAlguno) break;
+        }
+
+        posiciones.forEach(({ obs, ox, oy, x, y }) => {
+          // Si el pin se separó de su lugar real, marcamos el punto real con un puntito
+          // y trazamos una línea fina hasta el pin — así no se pierde la ubicación exacta.
+          if (Math.hypot(x - ox, y - oy) > 1) {
+            ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(x, y);
+            ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 1; ctx.stroke();
+            ctx.beginPath(); ctx.arc(ox, oy, radioPin * 0.18, 0, Math.PI*2);
+            ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fill();
+          }
+
           const color = obs.estado === 'Resuelta' ? '#2ecc71' : '#ff4f4f';
-          ctx.beginPath(); ctx.arc(px, py, radioPin, 0, Math.PI*2);
+          ctx.beginPath(); ctx.arc(x, y, radioPin, 0, Math.PI*2);
           ctx.fillStyle = color; ctx.fill();
           ctx.lineWidth = radioPin * 0.14; ctx.strokeStyle = '#fff'; ctx.stroke();
           ctx.fillStyle = '#fff'; ctx.font = `bold ${fontPin}px sans-serif`;
           ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-          ctx.fillText((obs.numero||'?').replace(/^OBS-0*/,'') || '0', px, py);
+          ctx.fillText((obs.numero||'?').replace(/^OBS-0*/,'') || '0', x, y);
         });
 
         const imgData = canvas.toDataURL('image/jpeg', 0.85);
