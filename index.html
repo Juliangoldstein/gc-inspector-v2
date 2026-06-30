@@ -241,17 +241,18 @@
     }
 
     // Listeners de filtros — adjuntados una sola vez al cargar la página
-    document.getElementById('filtro-busqueda').addEventListener('input', aplicarFiltros);
-    document.getElementById('filtro-disciplina').addEventListener('change', aplicarFiltros);
-    document.getElementById('filtro-nivel').addEventListener('change', aplicarFiltros);
-    document.getElementById('filtro-bloque').addEventListener('change', aplicarFiltros);
-    document.getElementById('filtro-depto').addEventListener('change', aplicarFiltros);
+    function onCambioFiltro() { actualizarFiltros(); aplicarFiltros(); }
+    document.getElementById('filtro-busqueda').addEventListener('input', onCambioFiltro);
+    document.getElementById('filtro-disciplina').addEventListener('change', onCambioFiltro);
+    document.getElementById('filtro-nivel').addEventListener('change', onCambioFiltro);
+    document.getElementById('filtro-bloque').addEventListener('change', onCambioFiltro);
+    document.getElementById('filtro-depto').addEventListener('change', onCambioFiltro);
     document.getElementById('btn-limpiar-filtros').addEventListener('click', () => {
       document.getElementById('filtro-busqueda').value = '';
       ['filtro-disciplina','filtro-nivel','filtro-bloque','filtro-depto'].forEach(id => {
         document.getElementById(id).value = '';
       });
-      aplicarFiltros();
+      onCambioFiltro();
     });
     let todosLosPlanos = []; // cache local para filtrado sin re-query
 
@@ -261,36 +262,59 @@
       if (planosUnsubscribe) planosUnsubscribe();
       planosUnsubscribe = onSnapshot(query(collection(db,'planos'), orderBy('creadoEn','desc')), snap => {
         todosLosPlanos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        actualizarFiltros();
-        aplicarFiltros();
+        onCambioFiltro();
       });
     }
+
+    // Orden lógico de niveles (no alfabético) — se usa al armar el select de Nivel
+    const ORDEN_NIVELES = ['Subsuelo','Planta Baja','1° Piso','2° Piso','3° Piso','4° Piso','5° Piso','6° Piso','7° Piso','8° Piso','9° Piso','10° Piso','11° Piso','12° Piso','Azotea'];
 
     function actualizarFiltros() {
-      // Reconstruir opciones de cada dropdown con los valores reales existentes
-      const disciplinas = [...new Set(todosLosPlanos.map(p => p.disciplina).filter(Boolean))].sort();
-      const niveles     = [...new Set(todosLosPlanos.map(p => p.nivel).filter(Boolean))].sort((a,b) => {
-        const orden = ['Subsuelo','Planta Baja','1° Piso','2° Piso','3° Piso','4° Piso','5° Piso','6° Piso','7° Piso','8° Piso','9° Piso','10° Piso','11° Piso','12° Piso','Azotea'];
-        return orden.indexOf(a) - orden.indexOf(b);
-      });
-      const bloques     = [...new Set(todosLosPlanos.map(p => p.bloque).filter(Boolean))].sort();
-      const deptos      = [...new Set(todosLosPlanos.map(p => p.depto).filter(Boolean))].sort();
+      // Valores actualmente seleccionados en cada filtro
+      const busqueda   = document.getElementById('filtro-busqueda').value.toLowerCase().trim();
+      const disciplina = document.getElementById('filtro-disciplina').value;
+      const nivel      = document.getElementById('filtro-nivel').value;
+      const bloque     = document.getElementById('filtro-bloque').value;
+      const depto      = document.getElementById('filtro-depto').value;
 
-      llenarSelect('filtro-disciplina', disciplinas);
-      llenarSelect('filtro-nivel',      niveles);
-      llenarSelect('filtro-bloque',     bloques);
-      llenarSelect('filtro-depto',      deptos);
+      // Planos que matchean todos los filtros activos EXCEPTO el del propio select que estamos
+      // armando (si no, un select nunca podría ofrecer otra opción distinta a la ya elegida).
+      // Esto es lo que hace que los filtros queden "conectados" entre sí (facetado).
+      function planosCruzados(campoExcluido) {
+        return todosLosPlanos.filter(p => {
+          if (busqueda && !p.nombre.toLowerCase().includes(busqueda)) return false;
+          if (campoExcluido !== 'disciplina' && disciplina && p.disciplina !== disciplina) return false;
+          if (campoExcluido !== 'nivel'      && nivel      && p.nivel      !== nivel)      return false;
+          if (campoExcluido !== 'bloque'     && bloque     && p.bloque     !== bloque)     return false;
+          if (campoExcluido !== 'depto'      && depto      && p.depto     !== depto)      return false;
+          return true;
+        });
+      }
+
+      const disciplinas = [...new Set(planosCruzados('disciplina').map(p => p.disciplina).filter(Boolean))].sort();
+      const niveles     = [...new Set(planosCruzados('nivel').map(p => p.nivel).filter(Boolean))]
+        .sort((a,b) => ORDEN_NIVELES.indexOf(a) - ORDEN_NIVELES.indexOf(b));
+      const bloques     = [...new Set(planosCruzados('bloque').map(p => p.bloque).filter(Boolean))].sort();
+      const deptos      = [...new Set(planosCruzados('depto').map(p => p.depto).filter(Boolean))].sort();
+
+      llenarSelect('filtro-disciplina', disciplinas, 'Disciplina');
+      llenarSelect('filtro-nivel',      niveles,     'Nivel');
+      llenarSelect('filtro-bloque',     bloques,     'Bloque');
+      llenarSelect('filtro-depto',      deptos,      'Depto.');
     }
 
-    function llenarSelect(id, opciones) {
+    function llenarSelect(id, opciones, etiqueta) {
       const sel   = document.getElementById(id);
       const prev  = sel.value;
-      sel.innerHTML = '<option value="">Todos</option>';
+      sel.innerHTML = `<option value="">${etiqueta}</option>`;
       opciones.forEach(o => {
         const opt = document.createElement('option');
         opt.value = o; opt.textContent = o;
         sel.appendChild(opt);
       });
+      // Si la opción que tenía elegida ya no es válida con el cruce actual de filtros
+      // (ej: "Torre" deja de existir al filtrar por un nivel donde no hay Torre), se
+      // limpia sola y vuelve a mostrar la etiqueta — no queda un filtro "fantasma" aplicado.
       if (prev && opciones.includes(prev)) sel.value = prev;
     }
 
