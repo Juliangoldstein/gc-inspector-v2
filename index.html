@@ -10,7 +10,7 @@
   <link rel="apple-touch-icon" href="icon-192.png">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
     import { getAuth, signInWithPopup, signOut, GoogleAuthProvider, onAuthStateChanged }
@@ -959,104 +959,121 @@
         alert(`Se certificaron ${noSync.length-errores} de ${noSync.length}.`);
       }
     });
-// ─── INFORME PDF ──────────────────────────────────────────────────────────
-document.getElementById('btn-imprimir-informe').addEventListener('click', async () => {
-  const est = pestañaActual(); if (!est?.pdfDoc) return;
-  const btn = document.getElementById('btn-imprimir-informe');
-  btn.disabled = true; btn.textContent = 'Generando...';
-  try { await generarInformePDF(est); }
-  catch(e) { console.error(e); alert('Error al generar el informe.'); }
-  finally { btn.disabled = false; btn.textContent = '🖨️ Informe'; }
-});
 
-async function generarInformePDF(est) {
-  const { jsPDF } = window.jspdf;
-  const numPaginas = est.pdfDoc.numPages;
-  let doc = null;
+    function mostrarToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.remove('oculto');t.classList.add('visible');setTimeout(()=>{t.classList.remove('visible');setTimeout(()=>t.classList.add('oculto'),300);},3000);}
 
-  for (let num = 1; num <= numPaginas; num++) {
-    const page = await est.pdfDoc.getPage(num);
-    const vp = page.getViewport({ scale: est.baseScale }); // escala fija, no la del zoom actual
+    // ─── INFORME PDF ──────────────────────────────────────────────────────────
+    document.getElementById('btn-imprimir-informe').addEventListener('click', async () => {
+      const est = pestañaActual(); if (!est?.pdfDoc) return;
+      const btn = document.getElementById('btn-imprimir-informe');
 
-    // Render offscreen — no toca el canvas visible
-    const canvas = document.createElement('canvas');
-    canvas.width = vp.width; canvas.height = vp.height;
-    const ctx = canvas.getContext('2d');
-    await page.render({ canvasContext: ctx, viewport: vp }).promise;
+      const horizontal = confirm('¿Orientación horizontal (apaisada)?\n\nAceptar = Horizontal\nCancelar = Vertical');
+      const orientacion = horizontal ? 'l' : 'p';
 
-    // Observaciones de esta página
-    const obsPagina = Object.values(est.observaciones)
-      .filter(o => o.pagina === num)
-      .sort((a,b) => (a.numero||'').localeCompare(b.numero||''));
+      // Se abre YA, antes de cualquier await — si se abre después, el navegador la bloquea como pop-up.
+      const ventana = window.open('', '_blank');
 
-    // Pines sobre el canvas offscreen
-    obsPagina.forEach(obs => {
-      const px = obs.x * canvas.width, py = obs.y * canvas.height;
-      const color = obs.estado === 'Resuelta' ? '#2ecc71' : '#ff4f4f';
-      ctx.beginPath(); ctx.arc(px, py, 14, 0, Math.PI*2);
-      ctx.fillStyle = color; ctx.fill();
-      ctx.lineWidth = 2; ctx.strokeStyle = '#fff'; ctx.stroke();
-      ctx.fillStyle = '#fff'; ctx.font = 'bold 13px sans-serif';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText((obs.numero||'?').replace(/^OBS-0*/,'') || '0', px, py);
+      btn.disabled = true; btn.textContent = 'Generando...';
+      try {
+        const blobUrl = await generarInformePDF(est, orientacion);
+        if (!ventana) {
+          alert('El navegador bloqueó la ventana emergente. Habilitá pop-ups para este sitio y volvé a intentar.');
+          return;
+        }
+        ventana.location.href = blobUrl;
+        // Le damos tiempo al visor de PDF a cargar antes de abrir el diálogo de impresión.
+        setTimeout(() => { try { ventana.focus(); ventana.print(); } catch(e) {} }, 700);
+      } catch(e) {
+        console.error(e); alert('Error al generar el informe.');
+        if (ventana) ventana.close();
+      } finally { btn.disabled = false; btn.textContent = '🖨️ Informe'; }
     });
 
-    const imgData = canvas.toDataURL('image/jpeg', 0.85);
-    const orientacion = canvas.width > canvas.height ? 'l' : 'p';
+    async function generarInformePDF(est, orientacion) {
+      const { jsPDF } = window.jspdf;
+      const numPaginas = est.pdfDoc.numPages;
+      let doc = null;
 
-    if (!doc) doc = new jsPDF({ orientation: orientacion, unit: 'pt', format: 'a4' });
-    else doc.addPage('a4', orientacion);
+      for (let num = 1; num <= numPaginas; num++) {
+        const page = await est.pdfDoc.getPage(num);
+        const vp = page.getViewport({ scale: est.baseScale }); // escala fija, no la del zoom actual
 
-const margen = 28;
-    const pageW = doc.internal.pageSize.getWidth();
-    const pageH = doc.internal.pageSize.getHeight();
-    const anchoUtil = pageW - margen*2;
+        // Render offscreen — no toca el canvas visible
+        const canvas = document.createElement('canvas');
+        canvas.width = vp.width; canvas.height = vp.height;
+        const ctx = canvas.getContext('2d');
+        await page.render({ canvasContext: ctx, viewport: vp }).promise;
 
-    let y = margen;
-    doc.setFontSize(13); doc.setFont(undefined,'bold');
-    doc.text(`${OBRA_NOMBRE} — ${est.plano.nombre}`, margen, y);
-    y += 16;
-    doc.setFontSize(9); doc.setFont(undefined,'normal'); doc.setTextColor(120);
-    doc.text(`Página ${num}/${numPaginas} · Generado ${new Date().toLocaleDateString('es-AR')} ${new Date().toLocaleTimeString('es-AR')}`, margen, y);
-    doc.setTextColor(0);
-    y += 12;
+        // Observaciones de esta página
+        const obsPagina = Object.values(est.observaciones)
+          .filter(o => o.pagina === num)
+          .sort((a,b) => (a.numero||'').localeCompare(b.numero||''));
 
-    // La imagen nunca puede pasarse de la hoja: la acotamos por ancho Y por alto disponible.
-    // Dejamos 60pt de margen inferior para que al menos entre el encabezado de la tabla debajo.
-    const altoMaxImagen = pageH - y - margen - 60;
-    const altoPorAncho  = anchoUtil * (canvas.height / canvas.width);
-    const altoImg = Math.min(altoPorAncho, altoMaxImagen);
-    const anchoImg = altoImg * (canvas.width / canvas.height);
-    const xImg = margen + (anchoUtil - anchoImg) / 2; // centrada si quedó más angosta que el ancho útil
+        // Pines sobre el canvas offscreen
+        obsPagina.forEach(obs => {
+          const px = obs.x * canvas.width, py = obs.y * canvas.height;
+          const color = obs.estado === 'Resuelta' ? '#2ecc71' : '#ff4f4f';
+          ctx.beginPath(); ctx.arc(px, py, 14, 0, Math.PI*2);
+          ctx.fillStyle = color; ctx.fill();
+          ctx.lineWidth = 2; ctx.strokeStyle = '#fff'; ctx.stroke();
+          ctx.fillStyle = '#fff'; ctx.font = 'bold 13px sans-serif';
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText((obs.numero||'?').replace(/^OBS-0*/,'') || '0', px, py);
+        });
 
-    doc.addImage(imgData, 'JPEG', xImg, y, anchoImg, altoImg);
-    y += altoImg + 16;
+        const imgData = canvas.toDataURL('image/jpeg', 0.85);
 
-    const filas = obsPagina.map(o => [
-      o.numero||'', o.rubro||'', o.descripcion||'', o.severidad||'',
-      o.responsable||'', o.estado||'', o.creadoEn?.toDate?.()?.toLocaleDateString('es-AR')||'',
-    ]);
+        if (!doc) doc = new jsPDF({ orientation: orientacion, unit: 'pt', format: 'a4' });
+        else doc.addPage('a4', orientacion);
 
-    if (filas.length) {
-      doc.autoTable({
-        startY: y,
-        head: [['N°','Rubro','Descripción','Severidad','Responsable','Estado','Fecha']],
-        body: filas,
-        margin: { left: margen, right: margen },
-        styles: { fontSize: 8, cellPadding: 4 },
-        headStyles: { fillColor: [26,26,26], textColor: [200,169,110] },
-      });
-    } else {
-      doc.setFontSize(10); doc.setTextColor(150);
-      doc.text('Sin observaciones en esta página.', margen, y+10);
-      doc.setTextColor(0);
+        const margen = 28;
+        const pageW = doc.internal.pageSize.getWidth();
+        const pageH = doc.internal.pageSize.getHeight();
+        const anchoUtil = pageW - margen*2;
+
+        let y = margen;
+        doc.setFontSize(13); doc.setFont(undefined,'bold');
+        doc.text(`${OBRA_NOMBRE} — ${est.plano.nombre}`, margen, y);
+        y += 16;
+        doc.setFontSize(9); doc.setFont(undefined,'normal'); doc.setTextColor(120);
+        doc.text(`Página ${num}/${numPaginas} · Generado ${new Date().toLocaleDateString('es-AR')} ${new Date().toLocaleTimeString('es-AR')}`, margen, y);
+        doc.setTextColor(0);
+        y += 12;
+
+        // La imagen nunca puede pasarse de la hoja: la acotamos por ancho Y por alto disponible.
+        // Dejamos 60pt de margen inferior para que al menos entre el encabezado de la tabla debajo.
+        const altoMaxImagen = pageH - y - margen - 60;
+        const altoPorAncho  = anchoUtil * (canvas.height / canvas.width);
+        const altoImg = Math.min(altoPorAncho, altoMaxImagen);
+        const anchoImg = altoImg * (canvas.width / canvas.height);
+        const xImg = margen + (anchoUtil - anchoImg) / 2; // centrada si quedó más angosta que el ancho útil
+
+        doc.addImage(imgData, 'JPEG', xImg, y, anchoImg, altoImg);
+        y += altoImg + 16;
+
+        const filas = obsPagina.map(o => [
+          o.numero||'', o.rubro||'', o.descripcion||'', o.severidad||'',
+          o.responsable||'', o.estado||'', o.creadoEn?.toDate?.()?.toLocaleDateString('es-AR')||'',
+        ]);
+
+        if (filas.length) {
+          doc.autoTable({
+            startY: y,
+            head: [['N°','Rubro','Descripción','Severidad','Responsable','Estado','Fecha']],
+            body: filas,
+            margin: { left: margen, right: margen },
+            styles: { fontSize: 8, cellPadding: 4 },
+            headStyles: { fillColor: [26,26,26], textColor: [200,169,110] },
+          });
+        } else {
+          doc.setFontSize(10); doc.setTextColor(150);
+          doc.text('Sin observaciones en esta página.', margen, y+10);
+          doc.setTextColor(0);
+        }
+      }
+
+      return doc.output('bloburl');
     }
-  }
-
-  doc.save(`Informe_${est.plano.nombre.replace(/[^\w\-]+/g,'_')}_${new Date().toISOString().slice(0,10)}.pdf`);
-}
-    
-    function mostrarToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.remove('oculto');t.classList.add('visible');setTimeout(()=>{t.classList.remove('visible');setTimeout(()=>t.classList.add('oculto'),300);},3000);}
 
     // ─── USUARIOS ─────────────────────────────────────────────────────────────
     document.getElementById('btn-usuarios').addEventListener('click', async ()=>{if(currentUserData?.rol!=='admin')return;await cargarPanelUsuarios();document.getElementById('modal-usuarios').classList.remove('oculto');});
@@ -1369,8 +1386,8 @@ const margen = 28;
       <span id="contador-obs"></span>
       <button id="btn-lista-obs">📋 Lista de obs.</button>
       <button id="btn-sincronizar">✓ Certificar</button>
-<button id="btn-imprimir-informe">🖨️ Informe</button>
-<button id="btn-nueva-obs">+ Nueva obs.</button>
+      <button id="btn-imprimir-informe">🖨️ Informe</button>
+      <button id="btn-nueva-obs">+ Nueva obs.</button>
     </div>
     <div class="inspector-body">
       <div id="pdf-area">
