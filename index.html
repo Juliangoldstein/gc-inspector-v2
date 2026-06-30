@@ -1026,8 +1026,10 @@
         }));
 
         // Si dos pines quedan más cerca que esta distancia, se empujan entre sí hasta separarse.
-        // Varias pasadas porque mover un par puede generar un nuevo solapamiento con un tercero.
-        const distanciaMinima = radioPin * 2.3;
+        // Es el mínimo indispensable para que el número del pin de atrás no quede tapado por
+        // el de adelante — los círculos pueden seguir solapándose en el borde, solo se cuida
+        // que el centro (donde va el número) no se pise.
+        const distanciaMinima = radioPin * 1.4;
         for (let iter = 0; iter < 60; iter++) {
           let movioAlguno = false;
           for (let i = 0; i < posiciones.length; i++) {
