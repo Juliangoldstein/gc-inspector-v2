@@ -1027,21 +1027,16 @@
         const anchoUtil = pageW - margen*2;
 
         let y = margen;
-        doc.setFontSize(13); doc.setFont(undefined,'bold');
-        doc.text(`${OBRA_NOMBRE} — ${est.plano.nombre}`, margen, y);
-        y += 16;
-        doc.setFontSize(9); doc.setFont(undefined,'normal'); doc.setTextColor(120);
-        doc.text(`Página ${num}/${numPaginas} · Generado ${new Date().toLocaleDateString('es-AR')} ${new Date().toLocaleTimeString('es-AR')}`, margen, y);
-        doc.setTextColor(0);
-        y += 12;
 
         // La imagen nunca puede pasarse de la hoja: la acotamos por ancho Y por alto disponible.
-        // Reservamos lugar para que entren el encabezado de la tabla + 4 filas debajo de la imagen
-        // (con fontSize:8 y cellPadding:4, cada fila de la tabla ocupa ~18pt). Si hay más de 4
-        // observaciones, las filas extra pasan solas a la hoja siguiente (autoTable se encarga).
-        const ALTO_FILA_TABLA = 18;
+        // Reservamos lugar para que entren el encabezado de la tabla + 4 filas debajo de la imagen.
+        // Subimos el alto estimado por fila (antes 18pt, justo) y contamos también el espacio que
+        // separa la imagen de la tabla (antes se sumaba aparte y se comía parte de la reserva).
+        // Si hay más de 4 observaciones, las filas extra pasan solas a la hoja siguiente (autoTable se encarga).
+        const ALTO_FILA_TABLA = 24;
         const FILAS_GARANTIZADAS = 4;
-        const altoReservadoTabla = ALTO_FILA_TABLA * (FILAS_GARANTIZADAS + 1); // +1 = encabezado
+        const ESPACIO_IMAGEN_TABLA = 16;
+        const altoReservadoTabla = ALTO_FILA_TABLA * (FILAS_GARANTIZADAS + 1) + ESPACIO_IMAGEN_TABLA; // +1 = encabezado
         const altoMaxImagen = pageH - y - margen - altoReservadoTabla;
         const altoPorAncho  = anchoUtil * (canvas.height / canvas.width);
         const altoImg = Math.min(altoPorAncho, altoMaxImagen);
@@ -1049,7 +1044,7 @@
         const xImg = margen + (anchoUtil - anchoImg) / 2; // centrada si quedó más angosta que el ancho útil
 
         doc.addImage(imgData, 'JPEG', xImg, y, anchoImg, altoImg);
-        y += altoImg + 16;
+        y += altoImg + ESPACIO_IMAGEN_TABLA;
 
         const filas = obsPagina.map(o => [
           o.numero||'', o.rubro||'', o.descripcion||'', o.severidad||'',
