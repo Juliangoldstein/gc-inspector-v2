@@ -703,7 +703,8 @@
         pin.className  = `pin ${obs.estado==='Resuelta'?'pin-resuelta':'pin-pendiente'}`;
         pin.style.left = (obs.x*canvas.width)+'px';
         pin.style.top  = (obs.y*canvas.height)+'px';
-        pin.textContent = obs.numero||'?';
+        const numeroCorto = (obs.numero||'?').replace(/^OBS-0*/,'') || '0';
+        pin.innerHTML = `<span class="pin-num">${numeroCorto}</span>`;
         pin.title = `${obs.numero} — ${obs.rubro}`;
         pin.addEventListener('click', e=>{e.stopPropagation();abrirPanelObs(obs.id);});
         overlay.appendChild(pin);
@@ -1090,8 +1091,9 @@
     #pdf-wrapper{position:relative;display:inline-block;}
     #pdf-canvas{display:block;}
     #marcadores-overlay{position:absolute;top:0;left:0;pointer-events:none;}
-    .pin{position:absolute;width:28px;height:28px;border-radius:50% 50% 50% 0;transform:translate(-50%,-100%) rotate(-45deg);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;cursor:pointer;pointer-events:all;transition:transform var(--trans);box-shadow:0 2px 8px rgba(0,0,0,0.4);}
+    .pin{position:absolute;width:34px;height:34px;border-radius:50% 50% 50% 0;transform:translate(-50%,-100%) rotate(-45deg);display:flex;align-items:center;justify-content:center;color:#fff;cursor:pointer;pointer-events:all;transition:transform var(--trans);box-shadow:0 2px 8px rgba(0,0,0,0.4);}
     .pin:hover{transform:translate(-50%,-110%) rotate(-45deg) scale(1.1);}
+    .pin-num{transform:rotate(45deg);font-size:13px;font-weight:800;line-height:1;}
     .pin-pendiente{background:var(--pin-pend);}.pin-resuelta{background:var(--pin-res);}
     #pdf-spinner{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:13px;color:var(--text2);background:var(--bg2);padding:12px 20px;border-radius:var(--radius);border:1px solid var(--border);}
 
