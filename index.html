@@ -170,6 +170,37 @@
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
+
+    // ─── LOGGING DE ERRORES ────────────────────────────────────────────────
+    // Guarda errores reales que le pasan a los usuarios en Firestore, para que
+    // el admin pueda revisarlos sin depender de que alguien avise manualmente.
+    // Solo se registran errores de usuarios YA autenticados (las reglas de
+    // Firestore exigen estar logueado para escribir acá — permitir escritura
+    // sin autenticación abriría la puerta a que cualquiera llene la colección
+    // de basura). `expiraEn` habilita la limpieza automática vía TTL policy
+    // (30 días) configurada aparte en la consola de Firestore.
+    async function registrarError(contexto, error, extra = {}) {
+      try {
+        const expiraEn = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+        await addDoc(collection(db, 'logs_errores'), {
+          contexto,
+          mensaje: error?.message || String(error) || 'Error desconocido',
+          uid: currentUser?.uid || null,
+          email: currentUser?.email || null,
+          rol: currentUserData?.rol || null,
+          planoId: extra.planoId || null,
+          obsId: extra.obsId || null,
+          userAgent: navigator.userAgent,
+          creadoEn: serverTimestamp(),
+          expiraEn,
+        });
+      } catch (e) {
+        // Si ni siquiera se pudo loguear el error, no hay mucho más para hacer
+        // salvo dejarlo en la consola del navegador como último recurso.
+        console.error('No se pudo registrar el error en Firestore:', e);
+      }
+    }
+
     const storage = getStorage(app);
     const provider = new GoogleAuthProvider();
 
@@ -652,7 +683,7 @@
         }
         actualizarNavegacionPaginas(estado);
         await renderizarPagina(estado, estado.pagina, true);
-      } catch(e) { console.error(e); alert('Error al cargar el PDF.'); }
+      } catch(e) { console.error(e); alert('Error al cargar el PDF.'); registrarError('cargar_pdf', e, {planoId: estado.plano.id}); }
       finally { spinner.classList.add('oculto'); }
     }
 
@@ -1040,7 +1071,7 @@
           await addDoc(collection(db,'observaciones'),{planoId:est.plano.id,numero,pagina:est.pagina,x,y,rubro,responsable,descripcion,severidad,estado:'Pendiente',notaResolucion:'',fotoUrl,creadoPor:currentUser.uid,creadoEn:serverTimestamp(),resueltaEn:null,sincronizadoSheet:false});
         }
         cerrarPanel();
-      } catch(e){console.error(e);alert('Error al guardar.');}
+      } catch(e){console.error(e);alert('Error al guardar.');registrarError('guardar_observacion', e, {planoId: est.plano.id});}
       finally{btn.disabled=false;btn.textContent=est.obsSeleccionada?'Actualizar':'Guardar';}
     });
 
@@ -1052,7 +1083,7 @@
       await deleteDoc(doc(db,'observaciones',est.obsSeleccionada));
       try {
         await llamarAppsScript({accion:'delete',id:obs.numero});
-      } catch(e) { console.warn('No se pudo borrar del Sheet:', e); }
+      } catch(e) { console.warn('No se pudo borrar del Sheet:', e); registrarError('eliminar_obs_sheet', e, {obsId: obs.numero, planoId: est.plano.id}); }
       cerrarPanel();
     });
 
@@ -1066,8 +1097,8 @@
       for(const obs of noSync){
         try{
           const res=await llamarAppsScript({accion:'upsert',id:obs.numero,obra:OBRA_NOMBRE,plano:est.plano.nombre,pagina:obs.pagina,rubro:obs.rubro,descripcion:obs.descripcion,severidad:obs.severidad,responsable:obs.responsable,foto:obs.fotoUrl||'',fechaCreacion:obs.creadoEn?.toDate?.()?.toLocaleDateString('es-AR')||'',estado:obs.estado,notaResolucion:obs.notaResolucion||'',fechaResolucion:obs.resueltaEn?.toDate?.()?.toLocaleDateString('es-AR')||''});
-          if(res.ok)await updateDoc(doc(db,'observaciones',obs.id),{sincronizadoSheet:true});else errores++;
-        }catch(e){console.error(e);errores++;}
+          if(res.ok)await updateDoc(doc(db,'observaciones',obs.id),{sincronizadoSheet:true});else{errores++;registrarError('certificar', new Error(`Respuesta no-ok del servidor (status ${res.status})`), {obsId: obs.numero, planoId: est.plano.id});}
+        }catch(e){console.error(e);errores++;registrarError('certificar', e, {obsId: obs.numero, planoId: est.plano.id});}
       }
       btn.disabled=false;btn.innerHTML=ICONO_CERTIFICAR;
       if(!errores){
@@ -1091,7 +1122,7 @@
         document.getElementById('iframe-informe').src = blobUrlInformeActual;
         document.getElementById('modal-informe').classList.remove('oculto');
       }
-      catch(e) { console.error(e); alert('Error al generar el informe.'); }
+      catch(e) { console.error(e); alert('Error al generar el informe.'); registrarError('generar_informe', e, {planoId: est.plano.id}); }
       finally { btn.disabled = false; btn.innerHTML = ICONO_INFORME; }
     });
 
