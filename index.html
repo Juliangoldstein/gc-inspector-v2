@@ -23,7 +23,7 @@
     script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://www.gstatic.com https://apis.google.com;
     style-src 'self' 'unsafe-inline';
     img-src 'self' data: blob: https://*.googleusercontent.com https://firebasestorage.googleapis.com;
-    connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://api.dropboxapi.com https://api.dropbox.com https://content.dropboxapi.com https://*.dropboxusercontent.com https://script.google.com https://script.googleusercontent.com https://*.firebasestorage.app https://apis.google.com https://gc-inspector-catamaran12.firebaseapp.com;
+    connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://api.dropboxapi.com https://content.dropboxapi.com https://*.dropboxusercontent.com https://script.google.com https://script.googleusercontent.com https://*.firebasestorage.app https://apis.google.com https://gc-inspector-catamaran12.firebaseapp.com https://us-central1-gc-inspector-catamaran12.cloudfunctions.net;
     frame-src 'self' blob: https://apis.google.com https://gc-inspector-catamaran12.firebaseapp.com https://accounts.google.com;
     object-src 'none';
     base-uri 'self';
@@ -55,9 +55,11 @@
       messagingSenderId: "697303338319",
       appId: "1:697303338319:web:1a6c4b153c3657cbb0c93a"
     };
-    const DROPBOX_APP_KEY       = 'qw79ab7qqu953as';
-    const DROPBOX_APP_SECRET    = '4iz9dk1tff48jxq';
-    const DROPBOX_REFRESH_TOKEN = 'h9uoKnqZO-UAAAAAAAAAATVIwKRENA91kwiaZ7bkejgAvIfWUATIMYPVZLVmckgX';
+    // El App Secret y el Refresh Token de Dropbox YA NO viven acá — se movieron
+    // a Firebase Secret Manager, accesibles solo desde la Cloud Function
+    // "obtenerTokenDropbox". El navegador solo conoce esta URL, que le
+    // devuelve un access token de corta duración (~4hs) por vez.
+    const CLOUD_FUNCTION_DROPBOX_TOKEN = 'https://us-central1-gc-inspector-catamaran12.cloudfunctions.net/obtenerTokenDropbox';
     const DROPBOX_FOLDER        = '/Espacio familiar/COMPLEJO CATAMARAN/Catamaran 12/m_Obra';
     const APPS_SCRIPT_URL       = 'https://script.google.com/macros/s/AKfycbxBMLwyI4TL8pERW9KyWaVca5lz5EK0fBDGscGyefxUPhZA_4H_tGaQ7lGTShLILnGYIg/exec';
     const OBRA_NOMBRE           = 'Catamarán 12';
@@ -222,10 +224,18 @@
     }));
 
     // ─── DROPBOX ──────────────────────────────────────────────────────────────
+    let dropboxTokenExpira = 0; // timestamp (ms) hasta cuándo es válido el access token en caché
     async function getDropboxToken() {
-      if (dropboxToken) return dropboxToken;
-      const res = await fetch('https://api.dropbox.com/oauth2/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: DROPBOX_REFRESH_TOKEN, client_id: DROPBOX_APP_KEY, client_secret: DROPBOX_APP_SECRET }) });
-      dropboxToken = (await res.json()).access_token;
+      // Reusar el token en caché si todavía le queda margen (30s de colchón
+      // antes de que expire, para no arrancar una descarga con un token que
+      // vence a mitad de camino).
+      if (dropboxToken && Date.now() < dropboxTokenExpira - 30000) return dropboxToken;
+
+      const res = await fetch(CLOUD_FUNCTION_DROPBOX_TOKEN);
+      if (!res.ok) throw new Error('No se pudo obtener el token de Dropbox (Cloud Function)');
+      const datos = await res.json();
+      dropboxToken = datos.access_token;
+      dropboxTokenExpira = Date.now() + (datos.expires_in * 1000);
       return dropboxToken;
     }
     async function listarCarpeta(path) {
