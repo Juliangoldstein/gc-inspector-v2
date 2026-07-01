@@ -29,13 +29,11 @@
     object-src 'none';
     base-uri 'self';
   ">
-  <!-- ⚠️ TODO (no aplicado acá a propósito): pdf.js 3.11.174 tiene CVE-2024-4367
-       (ejecución de JS arbitrario al abrir un PDF malicioso). La 4.x corrige esto,
-       pero pasó a ser ESM-only y rompe el global `pdfjsLib` que usa todo este archivo
-       (getDocument, GlobalWorkerOptions, etc.) — requiere reescribir esa parte y
-       PROBAR la carga/zoom/paneo de planos antes de subir a producción. Lo dejamos
-       para un cambio separado y testeado, no mezclado con este parche de seguridad. -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <!-- pdf.js ya NO se carga con <script src> — se importa como módulo ES
+       dentro del <script type="module"> principal (ver más abajo), porque
+       a partir de la v4 la librería pasó a ser ESM-only. Actualizado de
+       3.11.174 a 5.4.149: la 3.11.174 tenía CVE-2024-4367 (ejecución de JS
+       arbitrario al abrir un PDF malicioso), corregido desde la 4.2.67. -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
   <script type="module">
@@ -47,6 +45,7 @@
       from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
     import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject }
       from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
+    import * as pdfjsLib from 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.4.149/pdf.min.mjs';
 
     const firebaseConfig = {
       apiKey: "AIzaSyDYmNpwzqhgp-caudqx4VJtcwd4f4zsQ7w",
@@ -196,7 +195,7 @@
       return pestañas.get(pestañaActiva);
     }
 
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.4.149/pdf.worker.min.mjs';
 
     // ─── PANTALLAS ────────────────────────────────────────────────────────────
     const pantallas = { login: document.getElementById('pantalla-login'), espera: document.getElementById('pantalla-espera'), planos: document.getElementById('pantalla-planos'), inspector: document.getElementById('pantalla-inspector') };
@@ -537,6 +536,7 @@
         obsSeleccionada: null,
         scrollX:         0,
         scrollY:         0,
+        renderTaskActual: null,
       };
       pestañas.set(plano.id, estado);
 
@@ -663,6 +663,15 @@
       const area   = document.getElementById('pdf-area');
       const ctx    = canvas.getContext('2d');
 
+      // Desde pdf.js v4+, renderizar de nuevo sobre el mismo canvas mientras el
+      // render anterior no terminó tira error ("Cannot use the same canvas
+      // during multiple render() operations") — pasa seguido con zoom/paneo
+      // rápido o cambios de página rápidos. Cancelamos el render en curso
+      // (si lo hay) antes de arrancar uno nuevo.
+      if (estado.renderTaskActual) {
+        try { estado.renderTaskActual.cancel(); } catch (e) {}
+      }
+
       if (resetZoom) {
         const vp0 = page.getViewport({ scale: 1 });
         estado.baseScale = area.clientWidth / vp0.width;
@@ -673,7 +682,20 @@
       const vp     = page.getViewport({ scale: escala });
       canvas.width  = vp.width;
       canvas.height = vp.height;
-      await page.render({ canvasContext: ctx, viewport: vp }).promise;
+
+      const tarea = page.render({ canvasContext: ctx, viewport: vp });
+      estado.renderTaskActual = tarea;
+      try {
+        await tarea.promise;
+      } catch (e) {
+        // Un render cancelado por nosotros mismos (arriba) no es un error real —
+        // es justamente lo esperado cuando el usuario zoomea/pasa de página rápido.
+        if (e?.name === 'RenderingCancelledException') return;
+        throw e;
+      } finally {
+        if (estado.renderTaskActual === tarea) estado.renderTaskActual = null;
+      }
+
       renderizarMarcadores();
       document.getElementById('btn-pagina-actual').textContent = `Página ${num} / ${estado.pdfDoc.numPages}`;
       document.getElementById('btn-zoom-nivel').textContent    = Math.round(estado.zoom * 100) + '%';
