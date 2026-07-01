@@ -23,7 +23,7 @@
     script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://www.gstatic.com https://apis.google.com;
     style-src 'self' 'unsafe-inline';
     img-src 'self' data: blob: https://*.googleusercontent.com https://firebasestorage.googleapis.com;
-    connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://api.dropboxapi.com https://content.dropboxapi.com https://*.dropboxusercontent.com https://script.google.com https://script.googleusercontent.com https://*.firebasestorage.app https://apis.google.com https://gc-inspector-catamaran12.firebaseapp.com https://us-central1-gc-inspector-catamaran12.cloudfunctions.net;
+    connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://api.dropboxapi.com https://content.dropboxapi.com https://*.dropboxusercontent.com https://*.firebasestorage.app https://apis.google.com https://gc-inspector-catamaran12.firebaseapp.com https://us-central1-gc-inspector-catamaran12.cloudfunctions.net;
     frame-src 'self' blob: https://apis.google.com https://gc-inspector-catamaran12.firebaseapp.com https://accounts.google.com;
     worker-src 'self' blob: https://cdnjs.cloudflare.com;
     object-src 'none';
@@ -62,7 +62,22 @@
     // devuelve un access token de corta duración (~4hs) por vez.
     const CLOUD_FUNCTION_DROPBOX_TOKEN = 'https://us-central1-gc-inspector-catamaran12.cloudfunctions.net/obtenerTokenDropbox';
     const DROPBOX_FOLDER        = '/Espacio familiar/COMPLEJO CATAMARAN/Catamaran 12/m_Obra';
-    const APPS_SCRIPT_URL       = 'https://script.google.com/macros/s/AKfycbxBMLwyI4TL8pERW9KyWaVca5lz5EK0fBDGscGyefxUPhZA_4H_tGaQ7lGTShLILnGYIg/exec';
+    // El Apps Script ya NO se llama directo desde el navegador — pasa por esta
+    // Cloud Function, que exige la sesión real del usuario logueado y chequea
+    // en Firestore que esté autorizado antes de reenviar el pedido al Sheet.
+    const PROXY_APPS_SCRIPT_URL = 'https://us-central1-gc-inspector-catamaran12.cloudfunctions.net/proxyAppsScript';
+
+    async function llamarAppsScript(payload) {
+      const idToken = await currentUser.getIdToken();
+      return fetch(PROXY_APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`,
+        },
+        body: JSON.stringify(payload),
+      });
+    }
     const OBRA_NOMBRE           = 'Catamarán 12';
 
     // Íconos reutilizables para restaurar el contenido de los botones tras un estado de carga
@@ -1014,7 +1029,7 @@
       if(obs.fotoUrl){try{await deleteObject(ref(storage,obs.fotoUrl));}catch(e){}}
       await deleteDoc(doc(db,'observaciones',est.obsSeleccionada));
       try {
-        await fetch(APPS_SCRIPT_URL, { method:'POST', body:JSON.stringify({accion:'delete',id:obs.numero}) });
+        await llamarAppsScript({accion:'delete',id:obs.numero});
       } catch(e) { console.warn('No se pudo borrar del Sheet:', e); }
       cerrarPanel();
     });
@@ -1028,7 +1043,7 @@
       let errores=0;
       for(const obs of noSync){
         try{
-          const res=await fetch(APPS_SCRIPT_URL,{method:'POST',body:JSON.stringify({accion:'upsert',id:obs.numero,obra:OBRA_NOMBRE,plano:est.plano.nombre,pagina:obs.pagina,rubro:obs.rubro,descripcion:obs.descripcion,severidad:obs.severidad,responsable:obs.responsable,foto:obs.fotoUrl||'',fechaCreacion:obs.creadoEn?.toDate?.()?.toLocaleDateString('es-AR')||'',estado:obs.estado,notaResolucion:obs.notaResolucion||'',fechaResolucion:obs.resueltaEn?.toDate?.()?.toLocaleDateString('es-AR')||''})});
+          const res=await llamarAppsScript({accion:'upsert',id:obs.numero,obra:OBRA_NOMBRE,plano:est.plano.nombre,pagina:obs.pagina,rubro:obs.rubro,descripcion:obs.descripcion,severidad:obs.severidad,responsable:obs.responsable,foto:obs.fotoUrl||'',fechaCreacion:obs.creadoEn?.toDate?.()?.toLocaleDateString('es-AR')||'',estado:obs.estado,notaResolucion:obs.notaResolucion||'',fechaResolucion:obs.resueltaEn?.toDate?.()?.toLocaleDateString('es-AR')||''});
           if(res.ok)await updateDoc(doc(db,'observaciones',obs.id),{sincronizadoSheet:true});else errores++;
         }catch(e){console.error(e);errores++;}
       }
