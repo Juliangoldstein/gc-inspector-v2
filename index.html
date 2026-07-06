@@ -101,6 +101,37 @@
 
     const BLOQUES = { 'T': 'Torre', 'B': 'Basamento' };
 
+    // ─── UNIDADES POR BLOQUE Y NIVEL ─────────────────────────────────────────
+    // Estructura del edificio: qué unidades (deptos/locales/amenities) existen
+    // en cada piso de cada bloque. Claves = códigos de la nomenclatura.
+    // Fuente temporal: cuando exista la app de Calidad, esto migra a
+    // config/estructura en Firestore como fuente única para ambas apps.
+    const UNIDADES = {
+      'T': {
+        '00': ['A','L1','L2','L3'],
+        '01': ['A','B','C','D'],
+        '02': ['A','B','C','D'],
+        '03': ['SUM','GYM'],
+        '04': ['A','B','C'],
+        '05': ['A','B','C'],
+        '06': ['A','B'],
+        '07': ['A','B'],
+        '08': ['A','B'],
+        '99': ['Bauleras'],
+      },
+      'B': {
+        '00': ['C','L4','L5','L6','L7'],
+        '01': ['E','F','G','H','I','J'],
+        '02': ['E','F','G','H','I','J'],
+        '03': ['Terraza'],
+      },
+    };
+
+    // L1, L2... se muestran como "Local 1", "Local 2"... (el valor guardado sigue siendo L1)
+    function etiquetaUnidad(u) {
+      return /^L\d+$/.test(u) ? 'Local ' + u.slice(1) : u;
+    }
+
     function parsearNombrePlano(nombre) {
       // Intentar formato con guiones bajos: DD_NN_B_12_X (oficial)
       // Ejemplo: 08_02_T_12_B o 08_02_T_12 (sin depto)
@@ -327,6 +358,26 @@
       }
     }
 
+    // Backfill una sola vez: observaciones existentes sin campo depto heredan
+    // el depto de su plano (si el plano es de un depto específico) o quedan
+    // como "General". No toca sincronizadoSheet, así que NO dispara
+    // re-sincronizaciones al Sheet. Solo corre para admin y solo escribe en
+    // observaciones que todavía no tienen el campo.
+    async function migrarDeptoObservaciones() {
+      if (currentUserData?.rol !== 'admin') return;
+      const planosSnap = await getDocs(collection(db,'planos'));
+      const deptoPorPlano = {};
+      planosSnap.forEach(d => { const p = d.data(); if (p.depto) deptoPorPlano[d.id] = p.depto; });
+      const obsSnap = await getDocs(collection(db,'observaciones'));
+      const updates = [];
+      obsSnap.forEach(d => {
+        if (d.data().depto === undefined) {
+          updates.push(updateDoc(doc(db,'observaciones',d.id), { depto: deptoPorPlano[d.data().planoId] || 'General' }));
+        }
+      });
+      if (updates.length) { await Promise.all(updates); console.log(`✓ Depto asignado a ${updates.length} observaciones`); }
+    }
+
     async function iniciarPantallaPlanos() {
       document.getElementById('user-nombre').textContent = currentUserData.nombre || currentUser.email;
       document.getElementById('user-email').textContent = currentUser.email;
@@ -334,6 +385,9 @@
 
       // Migrar planos existentes sin metadata (corre silenciosamente)
       migrarMetadataPlanos().catch(e => console.warn('Migración metadata:', e));
+
+      // Migrar observaciones existentes sin depto (corre silenciosamente, solo admin)
+      migrarDeptoObservaciones().catch(e => console.warn('Migración depto:', e));
 
       cargarListaPlanos();
     }
@@ -890,9 +944,56 @@
     }
 
     // ─── PANEL OBS ────────────────────────────────────────────────────────────
+    // Puebla el select de Depto/Unidad según el plano de la pestaña:
+    // - Plano de un depto específico → valor fijo (el del plano), no editable.
+    // - Plano de planta completa con nivel/bloque conocidos → "General" +
+    //   las unidades reales de ese piso según UNIDADES.
+    // - Plano sin nomenclatura parseable → solo "General" (una unidad suelta
+    //   sin nivel/bloque sería ambigua: hay "A" en seis pisos distintos).
+    function poblarSelectDepto(est, valorActual = '') {
+      const sel = document.getElementById('obs-depto');
+      const plano = est.plano;
+      sel.innerHTML = '';
+
+      // Plano de un depto específico → valor fijo, no editable
+      if (plano.depto) {
+        const o = document.createElement('option');
+        o.value = plano.depto; o.textContent = etiquetaUnidad(plano.depto);
+        sel.appendChild(o);
+        sel.value = plano.depto;
+        sel.disabled = true;
+        return;
+      }
+
+      sel.disabled = false;
+      const og = document.createElement('option');
+      og.value = 'General'; og.textContent = 'General (sin depto)';
+      sel.appendChild(og);
+
+      // Planta completa con nivel/bloque conocidos → unidades reales de ese piso
+      const unidades = UNIDADES[plano.bloqueCod]?.[plano.nivelCod] || [];
+      unidades.forEach(u => {
+        const o = document.createElement('option');
+        o.value = u; o.textContent = etiquetaUnidad(u);
+        sel.appendChild(o);
+      });
+
+      // Si la obs guardada tiene un depto que no figura en la lista (ej: cambió
+      // la estructura, o vino de la migración), agregarlo igual para no perderlo
+      if (valorActual && ![...sel.options].some(o => o.value === valorActual)) {
+        const o = document.createElement('option');
+        o.value = valorActual; o.textContent = etiquetaUnidad(valorActual);
+        sel.appendChild(o);
+      }
+      sel.value = valorActual || 'General';
+
+      if (currentUserData?.rol === 'lector') sel.disabled = true;
+    }
+
     function abrirPanelNuevaObs(x, y) {
       const est = pestañaActual(); if (!est) return;
       est.obsSeleccionada = null; limpiarFormulario();
+      poblarSelectDepto(est);
       document.getElementById('panel-titulo').textContent='Nueva observación';
       document.getElementById('obs-x').value=x; document.getElementById('obs-y').value=y;
       document.getElementById('obs-estado-grupo').classList.add('oculto');
@@ -932,6 +1033,9 @@
         ['obs-rubro','obs-responsable','obs-descripcion','obs-severidad','obs-estado','obs-nota'].forEach(id=>{document.getElementById(id).disabled=false;});
         document.getElementById('obs-foto').disabled=false;
       }
+      // Después del bloque lector/no-lector: poblarSelectDepto decide por sí
+      // sola si el select queda deshabilitado (plano con depto fijo o rol lector)
+      poblarSelectDepto(est, obs.depto || '');
       document.getElementById('btn-guardar-obs').textContent='Actualizar';
       abrirPanel();
     }
@@ -977,7 +1081,7 @@
           </div>
           <div class="item-lista-obs-rubro">${escapeHtml(o.rubro)}${o.responsable ? ' · '+escapeHtml(o.responsable) : ''}</div>
           <div class="item-lista-obs-desc">${escapeHtml(o.descripcion)}</div>
-          <div class="item-lista-obs-meta">Pág. ${o.pagina} · Severidad: ${escapeHtml(o.severidad)}</div>
+          <div class="item-lista-obs-meta">Pág. ${o.pagina}${o.depto && o.depto!=='General' ? ' · Depto: '+escapeHtml(etiquetaUnidad(o.depto)) : ''} · Severidad: ${escapeHtml(o.severidad)}</div>
         `;
         item.addEventListener('click', () => {
           document.getElementById('btn-cerrar-lista-obs').click();
@@ -1044,6 +1148,7 @@
       const severidad=document.getElementById('obs-severidad').value;
       const estado=document.getElementById('obs-estado').value;
       const nota=document.getElementById('obs-nota').value.trim();
+      const depto=document.getElementById('obs-depto').value||'General';
       const x=parseFloat(document.getElementById('obs-x').value);
       const y=parseFloat(document.getElementById('obs-y').value);
       if(!rubro||!descripcion){alert('Completá al menos el rubro y la descripción.');return;}
@@ -1063,12 +1168,12 @@
         }
         fotoInput.dataset.eliminada = '';
         if(est.obsSeleccionada){
-          const data={rubro,responsable,descripcion,severidad,estado,notaResolucion:nota,fotoUrl,actualizadoEn:serverTimestamp(),sincronizadoSheet:false};
+          const data={rubro,responsable,descripcion,severidad,estado,depto,notaResolucion:nota,fotoUrl,actualizadoEn:serverTimestamp(),sincronizadoSheet:false};
           if(estado==='Resuelta'&&est.observaciones[est.obsSeleccionada]?.estado!=='Resuelta')data.resueltaEn=serverTimestamp();
           await updateDoc(doc(db,'observaciones',est.obsSeleccionada),data);
         } else {
           const numero = await obtenerSiguienteNumeroGlobal();
-          await addDoc(collection(db,'observaciones'),{planoId:est.plano.id,numero,pagina:est.pagina,x,y,rubro,responsable,descripcion,severidad,estado:'Pendiente',notaResolucion:'',fotoUrl,creadoPor:currentUser.uid,creadoEn:serverTimestamp(),resueltaEn:null,sincronizadoSheet:false});
+          await addDoc(collection(db,'observaciones'),{planoId:est.plano.id,numero,pagina:est.pagina,x,y,depto,rubro,responsable,descripcion,severidad,estado:'Pendiente',notaResolucion:'',fotoUrl,creadoPor:currentUser.uid,creadoEn:serverTimestamp(),resueltaEn:null,sincronizadoSheet:false});
         }
         cerrarPanel();
       } catch(e){console.error(e);alert('Error al guardar.');registrarError('guardar_observacion', e, {planoId: est.plano.id});}
@@ -1096,7 +1201,7 @@
       let errores=0;
       for(const obs of noSync){
         try{
-          const res=await llamarAppsScript({accion:'upsert',id:obs.numero,obra:OBRA_NOMBRE,plano:est.plano.nombre,pagina:obs.pagina,rubro:obs.rubro,descripcion:obs.descripcion,severidad:obs.severidad,responsable:obs.responsable,foto:obs.fotoUrl||'',fechaCreacion:obs.creadoEn?.toDate?.()?.toLocaleDateString('es-AR')||'',estado:obs.estado,notaResolucion:obs.notaResolucion||'',fechaResolucion:obs.resueltaEn?.toDate?.()?.toLocaleDateString('es-AR')||''});
+          const res=await llamarAppsScript({accion:'upsert',id:obs.numero,obra:OBRA_NOMBRE,plano:est.plano.nombre,pagina:obs.pagina,depto:obs.depto||'',rubro:obs.rubro,descripcion:obs.descripcion,severidad:obs.severidad,responsable:obs.responsable,foto:obs.fotoUrl||'',fechaCreacion:obs.creadoEn?.toDate?.()?.toLocaleDateString('es-AR')||'',estado:obs.estado,notaResolucion:obs.notaResolucion||'',fechaResolucion:obs.resueltaEn?.toDate?.()?.toLocaleDateString('es-AR')||''});
           if(res.ok)await updateDoc(doc(db,'observaciones',obs.id),{sincronizadoSheet:true});else{errores++;registrarError('certificar', new Error(`Respuesta no-ok del servidor (status ${res.status})`), {obsId: obs.numero, planoId: est.plano.id});}
         }catch(e){console.error(e);errores++;registrarError('certificar', e, {obsId: obs.numero, planoId: est.plano.id});}
       }
@@ -1678,6 +1783,7 @@
         <div class="panel-header"><h3 id="panel-titulo">Nueva observación</h3><button id="btn-cerrar-panel" class="btn-cerrar-panel">✕</button></div>
         <div class="panel-body">
           <input type="hidden" id="obs-x"><input type="hidden" id="obs-y">
+          <div class="campo"><label>Depto / Unidad</label><select id="obs-depto"></select></div>
           <div class="campo"><label>Rubro *</label><select id="obs-rubro"><option value="">— Seleccioná —</option></select></div>
           <div class="campo"><label>Responsable</label><select id="obs-responsable"><option value="">— Seleccioná rubro primero —</option></select></div>
           <div id="obs-responsable-otro" class="campo oculto"><label>Especificá el responsable</label><input type="text" id="obs-responsable-otro-texto" placeholder="Nombre del responsable"></div>
