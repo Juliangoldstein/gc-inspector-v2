@@ -1111,6 +1111,7 @@
 
     // ─── INFORME PDF ──────────────────────────────────────────────────────────
     let blobUrlInformeActual = null;
+    let nombreInformeActual  = '';
 
     document.getElementById('btn-imprimir-informe').addEventListener('click', async () => {
       const est = pestañaActual(); if (!est?.pdfDoc) return;
@@ -1118,8 +1119,13 @@
       btn.disabled = true; btn.textContent = 'Generando...';
       try {
         const blob = await generarInformePDF(est);
+        // Mismo nombre que el título interno del PDF — es el que va a usar el botón Descargar
+        nombreInformeActual  = `Informe_${est.plano.nombre.replace(/[^\w\-]+/g,'_')}_${new Date().toISOString().slice(0,10)}.pdf`;
         blobUrlInformeActual = URL.createObjectURL(blob);
-        document.getElementById('iframe-informe').src = blobUrlInformeActual;
+        // #toolbar=0 oculta la barra del visor de Chrome (cuyo botón de descarga
+        // guarda con un UUID ilegible). Descargar e Imprimir se hacen desde los
+        // botones propios del modal, que sí controlan el nombre del archivo.
+        document.getElementById('iframe-informe').src = blobUrlInformeActual + '#toolbar=0';
         document.getElementById('modal-informe').classList.remove('oculto');
       }
       catch(e) { console.error(e); alert('Error al generar el informe.'); registrarError('generar_informe', e, {planoId: est.plano.id}); }
@@ -1130,6 +1136,25 @@
       document.getElementById('modal-informe').classList.add('oculto');
       document.getElementById('iframe-informe').src = '';
       if (blobUrlInformeActual) { URL.revokeObjectURL(blobUrlInformeActual); blobUrlInformeActual = null; }
+    });
+
+    // Descargar con nombre legible (Informe_<plano>_<fecha>.pdf) — el botón del
+    // visor de Chrome no permite controlar el nombre de un blob URL.
+    document.getElementById('btn-descargar-informe').addEventListener('click', () => {
+      if (!blobUrlInformeActual) return;
+      const a = document.createElement('a');
+      a.href = blobUrlInformeActual;
+      a.download = nombreInformeActual;
+      a.click();
+    });
+
+    // Imprimir el PDF del iframe. El focus() previo evita que Chrome imprima
+    // la página padre en lugar del PDF en algunos casos.
+    document.getElementById('btn-imprimir-informe-modal').addEventListener('click', () => {
+      const iframe = document.getElementById('iframe-informe');
+      if (!iframe.src) return;
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
     });
 
     async function generarInformePDF(est) {
@@ -1575,7 +1600,14 @@
 
   <div id="modal-informe" class="modal-overlay oculto">
     <div class="modal modal-informe">
-      <div class="modal-header"><h3>Informe</h3><button id="btn-cerrar-modal-informe" class="btn-cerrar-modal">✕</button></div>
+      <div class="modal-header">
+        <h3>Informe</h3>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button id="btn-descargar-informe" class="btn-secondary" style="font-size:12px;padding:6px 12px">⬇ Descargar</button>
+          <button id="btn-imprimir-informe-modal" class="btn-secondary" style="font-size:12px;padding:6px 12px">🖨 Imprimir</button>
+          <button id="btn-cerrar-modal-informe" class="btn-cerrar-modal">✕</button>
+        </div>
+      </div>
       <div class="modal-body modal-body-informe"><iframe id="iframe-informe"></iframe></div>
     </div>
   </div>
