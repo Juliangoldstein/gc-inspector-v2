@@ -142,11 +142,19 @@
         const b = partesGuionBajo[2]?.trim().toUpperCase();
         // Validar que los primeros campos tienen sentido
         if (DISCIPLINAS[d] && (NIVELES[n] || /^\d+$/.test(n)) && BLOQUES[b]) {
+          // El 5° lugar solo cuenta como depto si es una unidad REAL de ese
+          // bloque/nivel según UNIDADES. Si no lo es (ej: "PLANTA GENERAL",
+          // "CORTES"), el plano se trata como planta completa → campo Depto
+          // seleccionable. Se devuelve el valor canónico de UNIDADES
+          // (ej: "Bauleras", no "BAULERAS").
+          const deptoCrudo = partesGuionBajo[4]?.trim().toUpperCase() || '';
+          const unidadesDelPiso = UNIDADES[b]?.[n] || [];
+          const unidadValida = unidadesDelPiso.find(u => u.toUpperCase() === deptoCrudo);
           return {
             disciplinaCod: d,
             nivelCod:      n,
             bloqueCod:     b,
-            depto:         partesGuionBajo[4]?.trim().toUpperCase() || '',
+            depto:         unidadValida || '',
             disciplina:    DISCIPLINAS[d],
             nivel:         NIVELES[n] || `Piso ${parseInt(n)}`,
             bloque:        BLOQUES[b],
@@ -378,6 +386,55 @@
       if (updates.length) { await Promise.all(updates); console.log(`✓ Depto asignado a ${updates.length} observaciones`); }
     }
 
+    // Corrección una sola vez: planos que quedaron con un "depto" inválido
+    // (ej: "PLANTA GENERAL" tomado del 5° lugar del nombre antes de que el
+    // parseo validara contra UNIDADES) se re-parsean con la lógica nueva.
+    // Las observaciones que heredaron ese valor inválido también se corrigen:
+    // pasan al depto corregido del plano, o a "General". No toca
+    // sincronizadoSheet. Solo corre para admin.
+    async function corregirDeptosInvalidos() {
+      if (currentUserData?.rol !== 'admin') return;
+
+      // Set de valores válidos: todas las unidades de todos los pisos + General
+      const valoresValidos = new Set(['General']);
+      Object.values(UNIDADES).forEach(niveles =>
+        Object.values(niveles).forEach(unidades =>
+          unidades.forEach(u => valoresValidos.add(u))));
+
+      // 1) Planos: re-parsear con la validación nueva y corregir si difiere
+      const planosSnap = await getDocs(collection(db,'planos'));
+      const deptoCorregidoPorPlano = {};
+      const updatesPlanos = [];
+      planosSnap.forEach(d => {
+        const p = d.data();
+        const meta = parsearNombrePlano(p.nombreOriginal || p.nombre.replace(/ /g, '_'));
+        const deptoCorrecto = meta?.depto || '';
+        deptoCorregidoPorPlano[d.id] = deptoCorrecto;
+        if ((p.depto || '') !== deptoCorrecto) {
+          updatesPlanos.push(updateDoc(doc(db,'planos',d.id), { depto: deptoCorrecto }));
+        }
+      });
+      if (updatesPlanos.length) {
+        await Promise.all(updatesPlanos);
+        console.log(`✓ Depto corregido en ${updatesPlanos.length} planos`);
+      }
+
+      // 2) Observaciones: si el depto guardado no es un valor válido, corregir
+      const obsSnap = await getDocs(collection(db,'observaciones'));
+      const updatesObs = [];
+      obsSnap.forEach(d => {
+        const o = d.data();
+        if (o.depto !== undefined && !valoresValidos.has(o.depto)) {
+          const nuevo = deptoCorregidoPorPlano[o.planoId] || 'General';
+          updatesObs.push(updateDoc(doc(db,'observaciones',d.id), { depto: nuevo }));
+        }
+      });
+      if (updatesObs.length) {
+        await Promise.all(updatesObs);
+        console.log(`✓ Depto corregido en ${updatesObs.length} observaciones`);
+      }
+    }
+
     async function iniciarPantallaPlanos() {
       document.getElementById('user-nombre').textContent = currentUserData.nombre || currentUser.email;
       document.getElementById('user-email').textContent = currentUser.email;
@@ -387,7 +444,11 @@
       migrarMetadataPlanos().catch(e => console.warn('Migración metadata:', e));
 
       // Migrar observaciones existentes sin depto (corre silenciosamente, solo admin)
-      migrarDeptoObservaciones().catch(e => console.warn('Migración depto:', e));
+      // y después corregir deptos inválidos que hayan quedado guardados
+      // (encadenadas para que la corrección vea el resultado del backfill)
+      migrarDeptoObservaciones()
+        .then(() => corregirDeptosInvalidos())
+        .catch(e => console.warn('Migración depto:', e));
 
       cargarListaPlanos();
     }
