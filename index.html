@@ -120,7 +120,7 @@
         '99': ['Bauleras'],
       },
       'B': {
-        '00': ['C','L4','L5','L6','L7'],
+        '00': ['B','L4','L5','L6','L7'],
         '01': ['E','F','G','H','I','J'],
         '02': ['E','F','G','H','I','J'],
         '03': ['Terraza'],
@@ -131,6 +131,111 @@
     function etiquetaUnidad(u) {
       return /^L\d+$/.test(u) ? 'Local ' + u.slice(1) : u;
     }
+
+    // ─── CROQUIS DE CALIDAD ───────────────────────────────────────────────────
+    // Cada croquis es un SVG con una forma por unidad (data-unidad="X") y las
+    // etiquetas como trazados (tipografía Ailerons vectorizada). La app pinta
+    // cada .unidad según el estado calculado y detecta el toque por data-unidad.
+    // Faltan los 7 croquis restantes (Torre completa + Terraza) — los niveles sin
+    // croquis muestran un aviso en la pantalla de Calidad.
+    const CROQUIS_SVG = {
+      'basamento_pb': `<svg viewBox="1800 3300 25600 14100" xmlns="http://www.w3.org/2000/svg">
+  <!-- GC Calidad — Croquis Basamento Planta Baja
+       Unidades: B (unificada), L4, L5, L6, L7. Espacio común no interactivo.
+       Etiquetas en tipografía Ailerons convertida a trazados (la fuente SVG
+       embebida original no la soportan los navegadores modernos). -->
+  <style>
+    .unidad { fill: #d9dce3; stroke: #2e3347; stroke-width: 60; cursor: pointer; }
+    .unidad-etiqueta path { fill: #1a1d27; pointer-events: none; }
+    .espacio-comun { fill: #eceef2; stroke: #2e3347; stroke-width: 40; stroke-dasharray: 260 160; pointer-events: none; }
+  </style>
+  <g id="espacios-comunes">
+    <polygon class="espacio-comun" points="12136.5,15599.71 12152.19,15599.71 12152.19,11789.85 15328.87,11789.85 15328.87,10485.99 19382.52,10485.99 19382.52,9190.83 16860.05,9190.83 16860.05,8007.77 12354.64,8007.77 12363.32,9209.28 10069.95,9209.28 10072.3,10776.82 7443.65,10776.82 7443.65,15571.41 12136.5,15571.41"/>
+  </g>
+  <g id="unidades">
+    <path class="unidad" data-unidad="B" d="M21717.77 7236.99 l2599.15 0 2416.97 0 0 5055.4 c304.74,1442.79 358.52,2616.7 0,4382.15 -3490.15,609.47 -4954.68,340.59 -7351.37,0 l0 -72.25 c-2229.17,-501.51 -4369.79,-592.66 -7230.33,0 l0 -4812.44 3176.68 0 0 -1303.86 4053.65 0 0 -1295.16 2335.25 0 0 -1953.84 z"/>
+    <polygon class="unidad" data-unidad="L4" points="2427.51,7135.3 2427.51,12392.59 7443.65,12392.59 7443.65,3951.98 4863.23,3951.98 4863.23,7135.3"/>
+    <polygon class="unidad" data-unidad="L5" points="7443.65,4796.04 9686.44,4796.04 9682.32,3927.86 12324.16,3945.46 12363.32,9209.28 10069.95,9209.28 10072.3,10776.82 7443.65,10776.82"/>
+    <polygon class="unidad" data-unidad="L6" points="12354.64,8007.77 12330.52,4799.39 16842.12,4799.39 16842.12,3974.6 19512.97,3974.6 19512.97,9190.83 16860.05,9190.83 16860.05,8007.77"/>
+    <polygon class="unidad" data-unidad="L7" points="19512.97,9190.83 19512.97,4835.01 21699.85,4835.01 21699.85,3938.75 24316.92,3938.75 24316.92,7236.99 21717.77,7236.99 21717.77,9190.83"/>
+  </g>
+  <g id="etiquetas">
+    <g class="unidad-etiqueta" data-unidad="B">
+      <path transform="translate(19509.0,13931.7) scale(3.1750,-3.1750)" d="M368 350c42,13.0016 41.0016,57.0016 41.0016,57.0016l0 204.998c-1.00157,49.0016 -40,88 -89.0016,88l-130 0 0 -700 130 0c49.0016,0 88,39.0016 89.0016,88l0 205.002c0,0 0.998425,44 -41.0016,56.9984zm-30.9984 74c0,-32 -18,-40.9984 -37.0016,-40.9984l-38.9984 0 0 244.998 38.9984 0c19.0016,0 37.0016,-10 37.0016,-36l0 -168zm0 -316c0,-26.9984 -18,-36.9984 -37.0016,-36.9984l-38.9984 0 0 246 38.9984 0c19.0016,0 37.0016,-9.00157 37.0016,-40l0 -169.002z"/>
+    </g>
+    <g class="unidad-etiqueta" data-unidad="L4">
+      <path transform="translate(3807.5,9626.3) scale(2.4694,-2.4694)" d="M282.999 70.9999l0 607c0,11.9987 -9.99822,21.0007 -22.0009,22.0009l-49.9992 0 0 -700.001 172.003 0c22.9971,0 33.9996,9.99822 38.9967,19.0003 3.00068,6.00136 15.0034,33.9996 23.0012,51.9996l-162 0z"/>
+      <path transform="translate(5163.3,9626.3) scale(2.4694,-2.4694)" d="M361.001 204.002l0 495.999 -51.9996 0c-5.00113,0 -19.0003,-1.00023 -25.0016,-22.0009l-136.999 -476.999 26.998 -51.9996c5.00113,-10.0023 13.9991,-21.0007 38.0005,-21.0007l77.0013 0 0 -107c1.00023,-11.0025 9.99822,-21.0007 22.0009,-21.0007l49.9992 0 0 128.001 8.99799 0c24.0014,0 36.0001,10.9984 41.0012,21.0007 3.00068,5.99731 15.9996,36.0001 24.0014,55.0003l-74.0006 0zm-72.0001 235.997l0 -235.997 -67.9992 0 67.9992 235.997z"/>
+    </g>
+    <g class="unidad-etiqueta" data-unidad="L5">
+      <path transform="translate(8400.5,8094.3) scale(2.4694,-2.4694)" d="M282.999 70.9999l0 607c0,11.9987 -9.99822,21.0007 -22.0009,22.0009l-49.9992 0 0 -700.001 172.003 0c22.9971,0 33.9996,9.99822 38.9967,19.0003 3.00068,6.00136 15.0034,33.9996 23.0012,51.9996l-162 0z"/>
+      <path transform="translate(9756.3,8094.3) scale(2.4694,-2.4694)" d="M264.999 447l0 169.002c0,6.99754 5.00113,11.9987 11.9987,11.9987l80.0019 0c23.0012,0 33.9996,10.9984 39.0007,20.0005 3.00068,5.99731 14.9994,33.9996 23.0012,51.9996l-188.002 0c0,0 -38.0005,2.00045 -38.0005,-48.0028l0 -239.998c1.00023,-20.0005 16.9998,-36.0001 37.0003,-37.0003l73.0004 0c22.0009,0 39.0007,-16.9998 39.0007,-38.0005l0 -242.998c0,-21.0007 -16.9998,-38.0005 -39.0007,-38.0005 -21.0007,0 -38.0005,16.9998 -38.0005,38.0005l0 143c-18,-8.00181 -45.9983,-21.0007 -51.9996,-23.0012 -8.99799,-5.00113 -20.0005,-15.9996 -20.0005,-39.0007l0 -94.0011c1.00023,-47.9987 40.001,-87.9997 88.9999,-87.9997l45.0021 0c47.9987,2.00045 86.9995,40.001 86.9995,87.9997l0 278.002c-1.00023,48.999 -40.001,87.9997 -88.9999,87.9997l-60.0015 0z"/>
+    </g>
+    <g class="unidad-etiqueta" data-unidad="L6">
+      <path transform="translate(14935.5,7353.3) scale(2.4694,-2.4694)" d="M282.999 70.9999l0 607c0,11.9987 -9.99822,21.0007 -22.0009,22.0009l-49.9992 0 0 -700.001 172.003 0c22.9971,0 33.9996,9.99822 38.9967,19.0003 3.00068,6.00136 15.0034,33.9996 23.0012,51.9996l-162 0z"/>
+      <path transform="translate(16291.3,7353.3) scale(2.4694,-2.4694)" d="M260.998 448l0 156.999c0,21.0007 18,38.0005 39.0007,38.0005 21.0007,0 38.0005,-16.9998 38.0005,-38.0005l0 -79.9979 0 -1.00023c18,7.99776 46.9985,20.9967 51.9996,23.9973 10.0023,5.00113 20.0005,20.0005 20.0005,43.0017l0 25.9978c0,49.003 -39.0007,88.0038 -86.9995,88.9999l0 1.00023 -44.0019 0c-48.999,0 -88.9999,-39.9969 -88.9999,-90.0002l0 -535c0,-48.999 40.001,-88.9999 88.9999,-88.9999l45.0021 0c47.9987,1.00023 85.9993,40.001 85.9993,88.9999l0 267c0,49.003 -27.9983,99.0022 -97.0017,99.0022l-51.9996 0zm77.0013 -353.999c0,-20.0005 -18,-39.0007 -38.0005,-39.0007 -21.0007,0 -39.0007,18 -39.0007,39.0007l0 284 39.0007 0c20.0005,0 38.0005,-14.9994 38.0005,-33.9996l0 -250z"/>
+    </g>
+    <g class="unidad-etiqueta" data-unidad="L7">
+      <path transform="translate(20350.3,7203.3) scale(2.4694,-2.4694)" d="M282.999 70.9999l0 607c0,11.9987 -9.99822,21.0007 -22.0009,22.0009l-49.9992 0 0 -700.001 172.003 0c22.9971,0 33.9996,9.99822 38.9967,19.0003 3.00068,6.00136 15.0034,33.9996 23.0012,51.9996l-162 0z"/>
+      <path transform="translate(21706.0,7203.3) scale(2.4694,-2.4694)" d="M161 700.001l24.0014 -51.9996c4.99708,-9.00204 14.9994,-20.0005 38.9967,-20.0005l97.0017 0c-37.0003,-101.003 -95.0013,-306.001 -97.9979,-606 0,-12.0027 9.99822,-22.0009 21.9969,-22.0009l49.9992 0c0,454.002 128.001,700.001 128.001,700.001l-261.999 0z"/>
+    </g>
+  </g>
+</svg>`,
+      'basamento_1-2': `<svg viewBox="900 2000 28400 16400" xmlns="http://www.w3.org/2000/svg">
+  <!-- GC Calidad — Croquis Basamento 1° y 2° piso
+       Unidades: E, F, G, H, I, J. Espacio común central no interactivo.
+       Etiquetas en Ailerons (glifos originales convertidos a trazados). -->
+  <style>
+    .unidad { fill: #d9dce3; stroke: #2e3347; stroke-width: 60; cursor: pointer; }
+    .unidad-etiqueta path { fill: #1a1d27; pointer-events: none; }
+    .espacio-comun { fill: #eceef2; stroke: #2e3347; stroke-width: 40; stroke-dasharray: 260 160; pointer-events: none; }
+  </style>
+  <g id="espacios-comunes">
+    <polygon class="espacio-comun" points="12622.18,8153.49 17531.32,8153.49 17531.32,9540.85 23102.75,9540.85 23102.75,10821.49 15887.82,10821.49 15887.82,12379.6 14265.68,12379.6 14265.68,10821.49 7050.75,10821.49 7050.75,9540.85 12622.18,9540.85"/>
+  </g>
+  <g id="unidades">
+    <polygon class="unidad" data-unidad="E" points="23102.75,5459.68 25925.08,5459.68 25925.08,3713.93 23208.83,3713.93 23208.83,2646.73 20434.11,2646.73 20434.11,3671.24 17595.35,3671.24 17595.35,4396.94 15076.75,4396.94 15076.75,8153.49 17531.32,8153.49 17531.32,9540.85 23102.75,9540.85"/>
+    <polygon class="unidad" data-unidad="F" points="25830.22,13038 28628.83,13041.72 28628.83,7214.74 25925.08,7214.74 25925.08,5459.68 23102.75,5459.68 23102.75,14614.48 25830.22,14614.48"/>
+    <polygon class="unidad" data-unidad="G" points="23102.75,14614.48 25830.22,14614.48 25830.22,16712.44 23187.49,16712.44 23187.49,17779.64 20370.07,17779.64 20370.07,16755.13 17595.35,16755.13 17595.35,16029.43 15076.75,16029.43 15076.75,12379.6 15887.82,12379.6 15887.82,10821.49 23102.75,10821.49"/>
+    <polygon class="unidad" data-unidad="H" points="7050.75,14614.48 4323.28,14614.48 4323.28,16712.44 6966.01,16712.44 6966.01,17779.64 9783.43,17779.64 9783.43,16755.13 12558.15,16755.13 12558.15,16029.43 15076.75,16029.43 15076.75,12379.6 14265.68,12379.6 14265.68,10821.49 7050.75,10821.49"/>
+    <polygon class="unidad" data-unidad="I" points="4323.28,13038 1524.67,13041.72 1524.67,7214.74 4228.42,7214.74 4228.42,5459.68 7050.75,5459.68 7050.75,14614.48 4323.28,14614.48"/>
+    <polygon class="unidad" data-unidad="J" points="7050.75,5459.68 4228.42,5459.68 4228.42,3713.93 6944.67,3713.93 6944.67,2646.73 9719.39,2646.73 9719.39,3671.24 12558.15,3671.24 12558.15,4396.94 15076.75,4396.94 15076.75,8153.49 12622.18,8153.49 12622.18,9540.85 7050.75,9540.85"/>
+  </g>
+  <g id="etiquetas">
+    <g class="unidad-etiqueta" data-unidad="E">
+      <path transform="translate(19124.5,7260.3) scale(3.1750,-3.1750)" d="M291.002 71.0016l0 242.998c0,9.00157 8,17.0016 16.9984,17.0016l30 0c23.0016,0 33.0016,10 38,18.9984 3.00157,6 15.0016,35.0016 23.0016,53.0016l-108 0 0 208c0,10 6.99843,16.9984 16.9984,16.9984l58 0c23.0016,0 34,11.0016 38,20l24 52 -186.998 0c-12,0 -21.0016,-8.99843 -22,-20l0 -680 160 0c22.9984,0 34,10 38.9984,19.0016 3.00157,6 15.0016,34 23.0016,52l-150 0z"/>
+    </g>
+    <g class="unidad-etiqueta" data-unidad="F">
+      <path transform="translate(24606.5,11169.3) scale(3.1750,-3.1750)" d="M237.002 700c-12,0 -21.0016,-10 -21.0016,-20.9984l0 -679.002 50 0c11.0016,0 21.0016,9.00157 21.0016,21.0016l0 282.998c0,10 8,17.0016 18,17.0016l48 0c22.9984,0 32.9984,10.9984 38,20l24 52 -128 0 0 218c0,8.99843 8,16.9984 16.9984,16.9984l80 0c23.0016,0 33.0016,11.0016 38,20 3.00157,6 16,34 23.0016,52l-208 0z"/>
+    </g>
+    <g class="unidad-etiqueta" data-unidad="G">
+      <path transform="translate(19042.5,15253.3) scale(3.1750,-3.1750)" d="M410 618c0,48 -38.9984,87.0016 -86.9984,89.0016l-44 0c-49.0016,0 -89.0016,-40 -89.0016,-89.0016l0 -536c0,-48.9984 40,-89.0016 89.0016,-89.0016l44 0c48,2 86.9984,41.0016 86.9984,89.0016l0 255.002c0,26.9984 -12.9984,38.9984 -34.9984,38.9984l-90 0 24 -50c0,0 10,-22.9984 26,-22.9984l2.99843 0 0 -209.002c0,-20.9984 -16.9984,-38 -38,-38 -20.9984,0 -38,17.0016 -38,38l0 512c0,21.0016 17.0016,38 38,38 21.0016,0 38,-16.9984 38,-38l0 -160c19.0016,8 47.0016,21.0016 52,24 10,5.00157 20,15.0016 20,39.0016l0 108.998z"/>
+    </g>
+    <g class="unidad-etiqueta" data-unidad="H">
+      <path transform="translate(9205.5,15253.3) scale(3.1750,-3.1750)" d="M348 700l0 -308 -70 0c-16.9984,0 -24.9984,5.00157 -24.9984,25.0016l0 282.998 -43.0016 0c-22,0 -28.9984,-16 -28.9984,-28l0 -672 72 0 0 321.002 78 0c8.99843,0 16,-7.00157 16.9984,-16l0 -305.002 72 0 0 672c0,12 -6.99843,28 -28.9984,28l-43.0016 0z"/>
+    </g>
+    <g class="unidad-etiqueta" data-unidad="I">
+      <path transform="translate(3800.3,11169.3) scale(3.1750,-3.1750)" d="M214 700l0 -684.998c1.00157,-5.00157 4,-15.0016 21.0016,-15.0016l50.9984 0 0 672c0,12 -8,28 -28.9984,28l-43.0016 0z"/>
+    </g>
+    <g class="unidad-etiqueta" data-unidad="J">
+      <path transform="translate(9202.9,7260.3) scale(3.1750,-3.1750)" d="M287.002 700l0 -606c0,-20.9984 -17.0016,-38 -38,-38 -21.0016,0 -38,17.0016 -38,38l0 63.0016c-18,-8 -45.0016,-20 -50,-23.0016 -10,-4 -20,-14.9984 -20,-38l0 -14c0,-48.9984 38,-89.0016 86.9984,-89.0016l45.0016 0 0 1.00157c48,0.998425 86,40 86,88l0 590c0,12 -7.00157,28 -29.0016,28l-42.9984 0z"/>
+    </g>
+  </g>
+</svg>`,
+    };
+
+    // Mapeo bloque→nivel→id de croquis. Varios niveles comparten planta.
+    const CROQUIS_POR_NIVEL = {
+      'B': {
+        '00': 'basamento_pb',
+        '01': 'basamento_1-2',
+        '02': 'basamento_1-2',
+        // '03' (Terraza) — croquis pendiente
+      },
+      'T': {
+        // Torre — croquis pendientes
+      },
+    };
 
     function parsearNombrePlano(nombre) {
       // Intentar formato con guiones bajos: DD_NN_B_12_X (oficial)
@@ -165,7 +270,40 @@
       return null;
     }
 
-    const RUBROS = ['Agua','Aire Acondicionado','Carpintería aluminio','Cerámico','Cloaca y pluvial','Durlock','Electricidad','Estructura','Gas','Incendio','Mampostería','Marcos y premarcos','Marmoles','Metalúrgica','Muebles','Pintura','Replanteo','Revoque y Contrapiso','Terminaciones','Yeso','Zócalos'];
+    // Lista maestra de rubros — fuente única para el desplegable de observaciones
+    // Y para los certificables de Calidad. Alfabética. Los 20 certificables + 4
+    // que solo sirven como observación (Estructura, Metalúrgica, Replanteo,
+    // Terminaciones — no se emiten certificados sobre ellos).
+    const RUBROS = ['Agua','Aire Acondicionado','Aluminio','Cerámico','Cloaca y pluvial','Contrapiso','Durlock','Electricidad','Estructura','Gas','Incendio','Mampostería','Marcos','Mármoles','Metalúrgica','Muebles','Pintura','Placares','Premarcos','Replanteo','Revoques interior','Terminaciones','Yeso','Zócalos'];
+
+    // Subconjunto certificable (los que aparecen en el selector de Calidad).
+    const RUBROS_CERTIFICABLES = ['Agua','Aire Acondicionado','Aluminio','Cerámico','Cloaca y pluvial','Contrapiso','Durlock','Electricidad','Gas','Incendio','Mampostería','Marcos','Mármoles','Muebles','Pintura','Placares','Premarcos','Revoques interior','Yeso','Zócalos'];
+
+    // Empresas/subcontratistas iniciales por rubro. Se usan solo para SEMBRAR
+    // config/empresas en Firestore la primera vez (si el doc no existe). Después
+    // el admin las edita desde el panel y esta constante deja de leerse.
+    const EMPRESAS_INICIALES = {
+      'Agua':               ['Americo Fernandez'],
+      'Aire Acondicionado': ['JAF Aire Acondicionado SRL'],
+      'Aluminio':           ['Carpintería Fasoli','ICB SRL'],
+      'Cerámico':           ['Angel Aciar'],
+      'Cloaca y pluvial':   ['Americo Fernandez'],
+      'Contrapiso':         ['Angel Aciar','Ariel García','Jesús Irazoque'],
+      'Durlock':            ['Renzo Olivares','Sebastián Alaníz'],
+      'Electricidad':       ['Amaya','Dinel SRL','Ismael Atencio'],
+      'Gas':                ['Americo Fernandez','Cortez'],
+      'Incendio':           ['Americo Fernandez','Ariel García','Jesús Irazoque'],
+      'Mampostería':        ['Ariel García','Jesús Irazoque'],
+      'Marcos':             ['Ariel García','Brizuela Oscar','Jesús Irazoque'],
+      'Mármoles':           ['AC Mármoles','Piedra Angular'],
+      'Muebles':            ['Amoblamiento Reno','Carpintería Fasoli','SQL SRL'],
+      'Pintura':            ['Lucas Guzman'],
+      'Placares':           ['Amoblamiento Reno','Carpintería Fasoli','SQL SRL'],
+      'Premarcos':          ['Ariel García','Brizuela Oscar','Jesús Irazoque'],
+      'Revoques interior':  ['Angel Aciar'],
+      'Yeso':               ['Desiderio','Mario Diaz'],
+      'Zócalos':            ['Aldo Moran'],
+    };
     const RESPONSABLES = {
       'Agua':                ['Plomero','Capataz','Otro'],
       'Aire Acondicionado':  ['Subcontratista','Capataz','Otro'],
@@ -268,7 +406,7 @@
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.4.149/pdf.worker.min.mjs';
 
     // ─── PANTALLAS ────────────────────────────────────────────────────────────
-    const pantallas = { login: document.getElementById('pantalla-login'), espera: document.getElementById('pantalla-espera'), planos: document.getElementById('pantalla-planos'), inspector: document.getElementById('pantalla-inspector') };
+    const pantallas = { login: document.getElementById('pantalla-login'), espera: document.getElementById('pantalla-espera'), home: document.getElementById('pantalla-home'), planos: document.getElementById('pantalla-planos'), inspector: document.getElementById('pantalla-inspector'), calidad: document.getElementById('pantalla-calidad') };
     function mostrar(n) {
       Object.values(pantallas).forEach(p => p.classList.add('oculto'));
       pantallas[n].classList.remove('oculto');
@@ -292,8 +430,21 @@
       await updateDoc(userRef, { ultimaConexion: serverTimestamp() });
       if (currentUserData.rol === 'admin') document.getElementById('btn-usuarios').style.display = 'block';
       if (currentUserData.rol === 'lector') document.getElementById('btn-agregar-plano').classList.add('oculto');
+      // El nombre del usuario se muestra en el home
+      document.getElementById('home-user-nombre').textContent = currentUserData.nombre || currentUser.email;
+      mostrar('home');
+      // Sembrar empresas de calidad en Firestore si es la primera vez (solo admin)
+      sembrarEmpresasSiFalta().catch(e => console.warn('Seed empresas:', e));
+    });
+
+    // Botones del home
+    document.getElementById('btn-home-inspeccionar').addEventListener('click', () => {
       mostrar('planos');
       iniciarPantallaPlanos();
+    });
+    document.getElementById('btn-home-calidad').addEventListener('click', () => {
+      mostrar('calidad');
+      iniciarPantallaCalidad();
     });
 
     document.getElementById('btn-login').addEventListener('click', async () => {
@@ -366,24 +517,32 @@
       }
     }
 
-    // Backfill una sola vez: observaciones existentes sin campo depto heredan
-    // el depto de su plano (si el plano es de un depto específico) o quedan
-    // como "General". No toca sincronizadoSheet, así que NO dispara
-    // re-sincronizaciones al Sheet. Solo corre para admin y solo escribe en
-    // observaciones que todavía no tienen el campo.
+    // Backfill una sola vez: observaciones existentes que no tengan depto,
+    // bloqueCod o nivelCod los heredan de su plano. El depto cae a "General"
+    // si el plano no es de un depto específico. bloqueCod/nivelCod son
+    // necesarios para que el módulo de Calidad ubique la obs en su celda.
+    // No toca sincronizadoSheet, así que NO dispara re-sincronizaciones al
+    // Sheet. Solo corre para admin y solo escribe los campos que falten.
     async function migrarDeptoObservaciones() {
       if (currentUserData?.rol !== 'admin') return;
       const planosSnap = await getDocs(collection(db,'planos'));
-      const deptoPorPlano = {};
-      planosSnap.forEach(d => { const p = d.data(); if (p.depto) deptoPorPlano[d.id] = p.depto; });
+      const metaPorPlano = {};
+      planosSnap.forEach(d => {
+        const p = d.data();
+        metaPorPlano[d.id] = { depto: p.depto || 'General', bloqueCod: p.bloqueCod || '', nivelCod: p.nivelCod || '' };
+      });
       const obsSnap = await getDocs(collection(db,'observaciones'));
       const updates = [];
       obsSnap.forEach(d => {
-        if (d.data().depto === undefined) {
-          updates.push(updateDoc(doc(db,'observaciones',d.id), { depto: deptoPorPlano[d.data().planoId] || 'General' }));
-        }
+        const o = d.data();
+        const meta = metaPorPlano[o.planoId] || { depto: 'General', bloqueCod: '', nivelCod: '' };
+        const patch = {};
+        if (o.depto === undefined)     patch.depto     = meta.depto;
+        if (o.bloqueCod === undefined) patch.bloqueCod = meta.bloqueCod;
+        if (o.nivelCod === undefined)  patch.nivelCod  = meta.nivelCod;
+        if (Object.keys(patch).length) updates.push(updateDoc(doc(db,'observaciones',d.id), patch));
       });
-      if (updates.length) { await Promise.all(updates); console.log(`✓ Depto asignado a ${updates.length} observaciones`); }
+      if (updates.length) { await Promise.all(updates); console.log(`✓ Metadata (depto/bloque/nivel) asignada a ${updates.length} observaciones`); }
     }
 
     // Corrección una sola vez: planos que quedaron con un "depto" inválido
@@ -1069,6 +1228,15 @@
       const esLector=currentUserData?.rol==='lector';
       document.getElementById('panel-titulo').textContent=obs.numero||'Observación';
       document.getElementById('obs-x').value=obs.x; document.getElementById('obs-y').value=obs.y;
+      // Si la obs tiene un rubro viejo que ya no está en la lista maestra
+      // (ej: "Marmoles", "Carpintería aluminio", "Revoque y Contrapiso"),
+      // lo agregamos como opción para no perderlo al abrir/guardar.
+      const selRubroObs = document.getElementById('obs-rubro');
+      if (obs.rubro && ![...selRubroObs.options].some(o => o.value === obs.rubro)) {
+        const o = document.createElement('option');
+        o.value = obs.rubro; o.textContent = obs.rubro + ' (histórico)';
+        selRubroObs.appendChild(o);
+      }
       document.getElementById('obs-rubro').value=obs.rubro||'';
       actualizarResponsables(obs.rubro);
       document.getElementById('obs-responsable').value=obs.responsable||'';
@@ -1234,7 +1402,10 @@
           await updateDoc(doc(db,'observaciones',est.obsSeleccionada),data);
         } else {
           const numero = await obtenerSiguienteNumeroGlobal();
-          await addDoc(collection(db,'observaciones'),{planoId:est.plano.id,numero,pagina:est.pagina,x,y,depto,rubro,responsable,descripcion,severidad,estado:'Pendiente',notaResolucion:'',fotoUrl,creadoPor:currentUser.uid,creadoEn:serverTimestamp(),resueltaEn:null,sincronizadoSheet:false});
+          // bloqueCod/nivelCod se copian del plano para que el módulo de Calidad
+          // pueda ubicar la obs en la celda correcta (el depto solo no alcanza: hay
+          // "A" en seis pisos distintos).
+          await addDoc(collection(db,'observaciones'),{planoId:est.plano.id,numero,pagina:est.pagina,x,y,depto,bloqueCod:est.plano.bloqueCod||'',nivelCod:est.plano.nivelCod||'',rubro,responsable,descripcion,severidad,estado:'Pendiente',notaResolucion:'',fotoUrl,creadoPor:currentUser.uid,creadoEn:serverTimestamp(),resueltaEn:null,sincronizadoSheet:false});
         }
         cerrarPanel();
       } catch(e){console.error(e);alert('Error al guardar.');registrarError('guardar_observacion', e, {planoId: est.plano.id});}
@@ -1478,6 +1649,493 @@
         lista.appendChild(div);
       });
     }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // ─── MÓDULO CALIDAD ───────────────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════════════════
+
+    // Cache en memoria del universo de datos para calcular estados. Se carga al
+    // entrar a Calidad y se refresca tras certificar o con el botón Actualizar.
+    let calidadObs = [];          // todas las observaciones
+    let calidadCerts = [];        // todos los certificados
+    let empresasCalidad = {};     // { rubro: [empresas] } desde config/empresas
+    let calidadUnidadSel = null;  // { bloqueCod, nivelCod, depto } de la unidad tocada
+
+    // Volver al home desde planos o calidad
+    document.querySelectorAll('.btn-ir-home').forEach(b => b.addEventListener('click', () => mostrar('home')));
+
+    // ── Semilla de empresas en Firestore (una vez) ──
+    async function sembrarEmpresasSiFalta() {
+      if (currentUserData?.rol !== 'admin') return;
+      const ref = doc(db, 'config', 'empresas');
+      const snap = await getDoc(ref);
+      if (!snap.exists()) {
+        await setDoc(ref, { porRubro: EMPRESAS_INICIALES, actualizadoEn: serverTimestamp() });
+        console.log('✓ config/empresas sembrado con las empresas iniciales');
+      }
+    }
+
+    async function cargarEmpresas() {
+      try {
+        const snap = await getDoc(doc(db, 'config', 'empresas'));
+        empresasCalidad = snap.exists() ? (snap.data().porRubro || {}) : {};
+      } catch (e) { empresasCalidad = {}; console.warn('cargarEmpresas', e); }
+    }
+
+    // ── Carga de datos para el cálculo de estados ──
+    async function cargarDatosCalidad() {
+      const [obsSnap, certSnap] = await Promise.all([
+        getDocs(collection(db, 'observaciones')),
+        getDocs(collection(db, 'certificados')),
+      ]);
+      calidadObs   = obsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      calidadCerts = certSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    }
+
+    // ── Cálculo del estado de una celda (bloque+nivel+depto+rubro) ──
+    // El estado NO se guarda: se deriva siempre de las obs y los certificados.
+    function estadoCelda(bloqueCod, nivelCod, depto, rubro) {
+      const obs = calidadObs.filter(o =>
+        o.rubro === rubro && o.depto === depto &&
+        o.bloqueCod === bloqueCod && o.nivelCod === nivelCod);
+      const certs = calidadCerts.filter(c =>
+        c.rubro === rubro && c.depto === depto &&
+        c.bloqueCod === bloqueCod && c.nivelCod === nivelCod);
+
+      const pendientes = obs.filter(o => o.estado === 'Pendiente');
+      const resueltas  = obs.filter(o => o.estado === 'Resuelta');
+
+      // Prioridad visual: lo pendiente gana siempre, aunque ya exista certificado.
+      if (pendientes.length) return { estado: 'con-pendientes', puedeCertificar: false, obs, certs };
+
+      if (certs.length) {
+        // ¿Todas las obs resueltas actuales están cubiertas por algún certificado?
+        const cubiertas = new Set();
+        certs.forEach(c => (c.obsCubiertas || []).forEach(x => cubiertas.add(x.id)));
+        const todasCubiertas = resueltas.every(o => cubiertas.has(o.id));
+        if (todasCubiertas) return { estado: 'certificada', puedeCertificar: false, obs, certs };
+        // Hay obs resueltas nuevas no cubiertas → re-certificación disponible
+        return { estado: 'lista', puedeCertificar: true, obs, certs };
+      }
+
+      if (resueltas.length) return { estado: 'lista', puedeCertificar: true, obs, certs };
+      return { estado: 'sin-inspeccion', puedeCertificar: true, obs, certs };
+    }
+
+    const ESTADO_LABEL = {
+      'sin-inspeccion': 'Sin inspección',
+      'con-pendientes': 'Con pendientes',
+      'lista':          'Listo para certificar',
+      'certificada':    'Certificado',
+    };
+
+    // ── Pantalla Calidad ──
+    async function iniciarPantallaCalidad() {
+      // Poblar selector de rubros certificables (una vez)
+      const selRubro = document.getElementById('cal-rubro');
+      if (!selRubro.dataset.poblado) {
+        selRubro.innerHTML = '<option value="">— Elegí un rubro —</option>';
+        RUBROS_CERTIFICABLES.forEach(r => {
+          const o = document.createElement('option'); o.value = r; o.textContent = r; selRubro.appendChild(o);
+        });
+        selRubro.dataset.poblado = '1';
+      }
+      // Botón de admin de empresas solo para admin
+      document.getElementById('cal-btn-empresas').classList.toggle('oculto', currentUserData?.rol !== 'admin');
+
+      document.getElementById('cal-croquis-cont').innerHTML =
+        '<div class="cal-placeholder">Elegí bloque, nivel y rubro para ver el croquis.</div>';
+      await cargarEmpresas();
+      await cargarDatosCalidad();
+    }
+
+    // Poblar selector de niveles según el bloque elegido
+    function actualizarNivelesCalidad() {
+      const bloque = document.getElementById('cal-bloque').value;
+      const selNivel = document.getElementById('cal-nivel');
+      selNivel.innerHTML = '<option value="">— Nivel —</option>';
+      if (!bloque) return;
+      // Orden por código numérico de nivel
+      const niveles = Object.keys(UNIDADES[bloque] || {}).sort((a, b) => parseInt(a) - parseInt(b));
+      niveles.forEach(nc => {
+        const o = document.createElement('option');
+        o.value = nc; o.textContent = NIVELES[nc] || ('Nivel ' + nc);
+        selNivel.appendChild(o);
+      });
+    }
+
+    document.getElementById('cal-bloque').addEventListener('change', () => {
+      actualizarNivelesCalidad();
+      renderizarCroquisCalidad();
+    });
+    document.getElementById('cal-nivel').addEventListener('change', renderizarCroquisCalidad);
+    document.getElementById('cal-rubro').addEventListener('change', renderizarCroquisCalidad);
+    document.getElementById('cal-btn-actualizar').addEventListener('click', async () => {
+      const btn = document.getElementById('cal-btn-actualizar');
+      btn.disabled = true;
+      await cargarDatosCalidad();
+      renderizarCroquisCalidad();
+      btn.disabled = false;
+      mostrarToast('Datos actualizados');
+    });
+
+    function renderizarCroquisCalidad() {
+      const bloque = document.getElementById('cal-bloque').value;
+      const nivel  = document.getElementById('cal-nivel').value;
+      const rubro  = document.getElementById('cal-rubro').value;
+      const cont   = document.getElementById('cal-croquis-cont');
+
+      if (!bloque || !nivel || !rubro) {
+        cont.innerHTML = '<div class="cal-placeholder">Elegí bloque, nivel y rubro para ver el croquis.</div>';
+        return;
+      }
+
+      const croquisId = CROQUIS_POR_NIVEL[bloque]?.[nivel];
+      if (!croquisId || !CROQUIS_SVG[croquisId]) {
+        cont.innerHTML = `<div class="cal-placeholder">Todavía no hay croquis cargado para ${escapeHtml(NIVELES[nivel]||nivel)} · ${escapeHtml(BLOQUES[bloque]||bloque)}.<br><span style="font-size:12px;color:var(--text2)">Se agregará cuando esté disponible.</span></div>`;
+        return;
+      }
+
+      cont.innerHTML = CROQUIS_SVG[croquisId];
+      const svg = cont.querySelector('svg');
+      svg.querySelectorAll('.unidad').forEach(u => {
+        const depto = u.dataset.unidad;
+        const { estado } = estadoCelda(bloque, nivel, depto, rubro);
+        u.classList.add('estado-' + estado);
+        u.style.cursor = 'pointer';
+        u.addEventListener('click', () => abrirDetalleUnidad(bloque, nivel, depto, rubro));
+      });
+    }
+
+    // ── Panel de detalle de una unidad ──
+    function abrirDetalleUnidad(bloqueCod, nivelCod, depto, rubro) {
+      calidadUnidadSel = { bloqueCod, nivelCod, depto, rubro };
+      const info = estadoCelda(bloqueCod, nivelCod, depto, rubro);
+      const esLector = currentUserData?.rol === 'lector';
+
+      document.getElementById('cal-detalle-titulo').textContent =
+        `${etiquetaUnidad(depto)} · ${rubro}`;
+      document.getElementById('cal-detalle-sub').textContent =
+        `${BLOQUES[bloqueCod]||bloqueCod} · ${NIVELES[nivelCod]||nivelCod}`;
+
+      const badge = document.getElementById('cal-detalle-estado');
+      badge.textContent = ESTADO_LABEL[info.estado];
+      badge.className = 'cal-badge-estado estado-badge-' + info.estado;
+
+      // Observaciones
+      let obsHtml = '';
+      if (info.obs.length) {
+        obsHtml = info.obs
+          .sort((a,b) => (a.numero||'').localeCompare(b.numero||''))
+          .map(o => `<div class="cal-obs-item ${o.estado==='Resuelta'?'res':'pend'}">
+            <div class="cal-obs-head"><strong>${escapeHtml(o.numero)}</strong>
+              <span class="badge-estado ${o.estado==='Resuelta'?'badge-resuelta':'badge-pendiente'}">${escapeHtml(o.estado)}</span></div>
+            <div class="cal-obs-desc">${escapeHtml(o.descripcion)}</div>
+            ${o.estado==='Resuelta'&&o.notaResolucion?`<div class="cal-obs-nota">Resolución: ${escapeHtml(o.notaResolucion)}</div>`:''}
+          </div>`).join('');
+      } else {
+        obsHtml = '<div class="cal-vacio">Sin observaciones registradas para este rubro en esta unidad.</div>';
+      }
+      document.getElementById('cal-detalle-obs').innerHTML = obsHtml;
+
+      // Certificados previos
+      let certHtml = '';
+      if (info.certs.length) {
+        certHtml = '<h4>Certificados emitidos</h4>' + info.certs
+          .sort((a,b) => (a.numero||'').localeCompare(b.numero||''))
+          .map(c => `<div class="cal-cert-item">
+            <strong>${escapeHtml(c.numero)}</strong> · ${escapeHtml(c.responsable||'—')}
+            <span class="cal-cert-fecha">${c.fecha?.toDate?.()?.toLocaleDateString('es-AR')||''}</span>
+            <button class="cal-btn-repdf" data-cert="${c.id}">PDF</button>
+          </div>`).join('');
+      }
+      document.getElementById('cal-detalle-certs').innerHTML = certHtml;
+      document.getElementById('cal-detalle-certs').querySelectorAll('.cal-btn-repdf').forEach(b => {
+        b.addEventListener('click', () => {
+          const cert = calidadCerts.find(c => c.id === b.dataset.cert);
+          if (cert) generarPDFCertificado(cert);
+        });
+      });
+
+      // Botón certificar: visible solo si el estado lo permite y no es lector
+      const btnCert = document.getElementById('cal-btn-certificar');
+      btnCert.classList.toggle('oculto', !info.puedeCertificar || esLector);
+
+      document.getElementById('cal-detalle').classList.remove('oculto');
+      document.getElementById('cal-detalle').classList.add('abierto');
+    }
+
+    document.getElementById('cal-detalle-cerrar').addEventListener('click', () => {
+      document.getElementById('cal-detalle').classList.remove('abierto');
+      setTimeout(() => document.getElementById('cal-detalle').classList.add('oculto'), 300);
+      calidadUnidadSel = null;
+    });
+
+    // ── Flujo de certificación ──
+    document.getElementById('cal-btn-certificar').addEventListener('click', () => {
+      if (!calidadUnidadSel) return;
+      const { rubro } = calidadUnidadSel;
+      const empresas = empresasCalidad[rubro] || [];
+      const sel = document.getElementById('cal-cert-responsable');
+      sel.innerHTML = '<option value="">— Elegí responsable —</option>';
+      empresas.slice().sort((a,b)=>a.localeCompare(b)).forEach(e => {
+        const o = document.createElement('option'); o.value = e; o.textContent = e; sel.appendChild(o);
+      });
+      const optOtro = document.createElement('option'); optOtro.value = '__OTRO__'; optOtro.textContent = 'Otro (especificar)…';
+      sel.appendChild(optOtro);
+      document.getElementById('cal-cert-otro-wrap').classList.add('oculto');
+      document.getElementById('cal-cert-otro').value = '';
+      if (!empresas.length) {
+        document.getElementById('cal-cert-aviso').textContent =
+          'Este rubro no tiene empresas cargadas. Elegí "Otro" o cargalas desde el panel de empresas.';
+      } else {
+        document.getElementById('cal-cert-aviso').textContent = '';
+      }
+      document.getElementById('modal-certificar').classList.remove('oculto');
+    });
+
+    document.getElementById('cal-cert-responsable').addEventListener('change', e => {
+      document.getElementById('cal-cert-otro-wrap').classList.toggle('oculto', e.target.value !== '__OTRO__');
+    });
+    document.getElementById('cal-cert-cancelar').addEventListener('click', () =>
+      document.getElementById('modal-certificar').classList.add('oculto'));
+
+    document.getElementById('cal-cert-confirmar').addEventListener('click', async () => {
+      if (!calidadUnidadSel) return;
+      const sel = document.getElementById('cal-cert-responsable').value;
+      const responsable = sel === '__OTRO__'
+        ? document.getElementById('cal-cert-otro').value.trim()
+        : sel;
+      if (!responsable) { alert('Elegí o especificá el responsable.'); return; }
+
+      const { bloqueCod, nivelCod, depto, rubro } = calidadUnidadSel;
+      const info = estadoCelda(bloqueCod, nivelCod, depto, rubro);
+      if (!info.puedeCertificar) { alert('Esta unidad no está en condiciones de certificar.'); return; }
+
+      const btn = document.getElementById('cal-cert-confirmar');
+      btn.disabled = true; btn.textContent = 'Generando…';
+      try {
+        // Snapshot de las obs resueltas que cubre este certificado
+        const resueltas = info.obs.filter(o => o.estado === 'Resuelta');
+        const obsCubiertas = resueltas.map(o => ({
+          id: o.id, numero: o.numero || '', descripcion: o.descripcion || '',
+          severidad: o.severidad || '', responsable: o.responsable || '',
+          fechaCreacion: o.creadoEn?.toDate?.()?.toLocaleDateString('es-AR') || '',
+          notaResolucion: o.notaResolucion || '',
+          fechaResolucion: o.resueltaEn?.toDate?.()?.toLocaleDateString('es-AR') || '',
+        }));
+        const sinObservaciones = obsCubiertas.length === 0;
+
+        // Certificado anterior más reciente de esta celda (para la referencia)
+        const certPrevio = info.certs.slice().sort((a,b) =>
+          (a.numero||'').localeCompare(b.numero||'')).pop();
+
+        const numero = await obtenerSiguienteNumeroCertificado();
+        const certData = {
+          numero, obra: OBRA_NOMBRE,
+          bloqueCod, bloqueNombre: BLOQUES[bloqueCod] || bloqueCod,
+          nivelCod, nivelNombre: NIVELES[nivelCod] || nivelCod,
+          depto, deptoNombre: etiquetaUnidad(depto),
+          rubro, responsable,
+          obsCubiertas, sinObservaciones,
+          certificadoAnteriorNumero: certPrevio?.numero || null,
+          otorgadoPor: currentUser.uid,
+          otorgadoPorNombre: currentUserData.nombre || currentUser.email,
+          fecha: serverTimestamp(),
+        };
+        const ref = await addDoc(collection(db, 'certificados'), certData);
+
+        // Generar PDF (usa la fecha local ya que serverTimestamp aún no resolvió)
+        generarPDFCertificado({ ...certData, id: ref.id, fecha: { toDate: () => new Date() } });
+
+        document.getElementById('modal-certificar').classList.add('oculto');
+        mostrarToast(`✓ ${numero} emitido`);
+        await cargarDatosCalidad();
+        renderizarCroquisCalidad();
+        // Refrescar el panel de detalle con el nuevo estado
+        abrirDetalleUnidad(bloqueCod, nivelCod, depto, rubro);
+      } catch (e) {
+        console.error(e); alert('Error al generar el certificado.');
+        registrarError('certificar_calidad', e);
+      } finally {
+        btn.disabled = false; btn.textContent = 'Confirmar y generar';
+      }
+    });
+
+    // Contador atómico de certificados — CERT-001, CERT-002, …
+    async function obtenerSiguienteNumeroCertificado() {
+      const ref = doc(db, 'contadores', 'certificados');
+      let numero;
+      await runTransaction(db, async (t) => {
+        const snap = await t.get(ref);
+        const actual = snap.exists() ? (snap.data().ultimo || 0) : 0;
+        const sig = actual + 1;
+        t.set(ref, { ultimo: sig }, { merge: true });
+        numero = `CERT-${sig.toString().padStart(3, '0')}`;
+      });
+      return numero;
+    }
+
+    // ── PDF del certificado de calidad ──
+    function generarPDFCertificado(cert) {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
+      const fecha = cert.fecha?.toDate?.()?.toLocaleDateString('es-AR') || new Date().toLocaleDateString('es-AR');
+      const pageW = doc.internal.pageSize.getWidth();
+      const margen = 48;
+      let y = 56;
+
+      // Encabezado
+      doc.setFillColor(26, 26, 26);
+      doc.rect(0, 0, pageW, 90, 'F');
+      doc.setTextColor(200, 169, 110);
+      doc.setFontSize(20); doc.setFont(undefined, 'bold');
+      doc.text('Certificado de Calidad', margen, 44);
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(11); doc.setFont(undefined, 'normal');
+      doc.text(cert.obra || OBRA_NOMBRE, margen, 66);
+      doc.setFontSize(14); doc.setFont(undefined, 'bold'); doc.setTextColor(200, 169, 110);
+      doc.text(cert.numero, pageW - margen, 44, { align: 'right' });
+      doc.setTextColor(255,255,255); doc.setFontSize(10); doc.setFont(undefined, 'normal');
+      doc.text(fecha, pageW - margen, 66, { align: 'right' });
+
+      y = 130;
+      doc.setTextColor(0, 0, 0);
+
+      // Datos de la unidad
+      const fila = (label, valor) => {
+        doc.setFont(undefined, 'bold'); doc.setFontSize(10); doc.setTextColor(90, 90, 90);
+        doc.text(label.toUpperCase(), margen, y);
+        doc.setFont(undefined, 'normal'); doc.setFontSize(13); doc.setTextColor(0, 0, 0);
+        doc.text(String(valor || '—'), margen, y + 17);
+        y += 42;
+      };
+      const colX = pageW / 2 + 10;
+      const filaDoble = (l1, v1, l2, v2) => {
+        doc.setFont(undefined, 'bold'); doc.setFontSize(10); doc.setTextColor(90, 90, 90);
+        doc.text(l1.toUpperCase(), margen, y); doc.text(l2.toUpperCase(), colX, y);
+        doc.setFont(undefined, 'normal'); doc.setFontSize(13); doc.setTextColor(0, 0, 0);
+        doc.text(String(v1 || '—'), margen, y + 17); doc.text(String(v2 || '—'), colX, y + 17);
+        y += 42;
+      };
+
+      filaDoble('Edificio', cert.bloqueNombre, 'Nivel', cert.nivelNombre);
+      filaDoble('Unidad / Depto', cert.deptoNombre || cert.depto, 'Rubro', cert.rubro);
+      fila('Responsable / Subcontratista', cert.responsable);
+
+      // Línea divisoria
+      doc.setDrawColor(220, 220, 220); doc.line(margen, y, pageW - margen, y); y += 24;
+
+      // Detalle de observaciones
+      doc.setFont(undefined, 'bold'); doc.setFontSize(12); doc.setTextColor(0, 0, 0);
+      doc.text('Detalle de la inspección', margen, y); y += 8;
+
+      if (cert.sinObservaciones) {
+        y += 16;
+        doc.setFont(undefined, 'normal'); doc.setFontSize(11); doc.setTextColor(60, 60, 60);
+        doc.text('La unidad fue inspeccionada y no presentó observaciones para este rubro.', margen, y);
+        y += 24;
+      } else {
+        doc.autoTable({
+          startY: y + 8,
+          head: [['N°', 'Descripción', 'Severidad', 'Creación', 'Resolución', 'Fecha res.']],
+          body: (cert.obsCubiertas || []).map(o => [
+            o.numero, o.descripcion, o.severidad, o.fechaCreacion,
+            o.notaResolucion || '—', o.fechaResolucion,
+          ]),
+          margin: { left: margen, right: margen },
+          styles: { fontSize: 8, cellPadding: 4, valign: 'top' },
+          headStyles: { fillColor: [26, 26, 26], textColor: [200, 169, 110] },
+          columnStyles: { 1: { cellWidth: 150 }, 4: { cellWidth: 110 } },
+        });
+        y = doc.lastAutoTable.finalY + 20;
+      }
+
+      // Certificado anterior (re-certificación)
+      if (cert.certificadoAnteriorNumero) {
+        doc.setFont(undefined, 'italic'); doc.setFontSize(10); doc.setTextColor(90, 90, 90);
+        doc.text(`Este certificado complementa al ${cert.certificadoAnteriorNumero} emitido previamente para esta unidad y rubro.`, margen, y);
+        y += 26;
+      }
+
+      // Pie: otorgado por + firma
+      const pageH = doc.internal.pageSize.getHeight();
+      let yPie = Math.max(y + 30, pageH - 120);
+      doc.setDrawColor(180, 180, 180); doc.line(margen, yPie, margen + 200, yPie);
+      doc.setFont(undefined, 'normal'); doc.setFontSize(10); doc.setTextColor(60, 60, 60);
+      doc.text('Otorgado por', margen, yPie + 16);
+      doc.setFont(undefined, 'bold'); doc.setFontSize(11); doc.setTextColor(0, 0, 0);
+      doc.text(cert.otorgadoPorNombre || '', margen, yPie + 32);
+      doc.setFont(undefined, 'normal'); doc.setFontSize(9); doc.setTextColor(120, 120, 120);
+      doc.text(`Emitido el ${fecha} · ${cert.numero}`, margen, yPie + 50);
+
+      doc.setProperties({ title: `${cert.numero}_${(cert.deptoNombre||cert.depto)}_${cert.rubro}`.replace(/[^\w\-]+/g, '_') });
+
+      // Abrir en el visor modal reutilizando la infraestructura del informe
+      const blob = doc.output('blob');
+      nombreInformeActual = `${cert.numero}_${(cert.deptoNombre||cert.depto)}_${cert.rubro}`.replace(/[^\w\-]+/g, '_') + '.pdf';
+      if (blobUrlInformeActual) URL.revokeObjectURL(blobUrlInformeActual);
+      blobUrlInformeActual = URL.createObjectURL(blob);
+      document.getElementById('iframe-informe').src = blobUrlInformeActual + '#toolbar=0';
+      document.getElementById('modal-informe').classList.remove('oculto');
+    }
+
+    // ── Panel admin de empresas ──
+    document.getElementById('cal-btn-empresas').addEventListener('click', async () => {
+      if (currentUserData?.rol !== 'admin') return;
+      await cargarEmpresas();
+      renderizarPanelEmpresas();
+      document.getElementById('modal-empresas').classList.remove('oculto');
+    });
+    document.getElementById('cal-empresas-cerrar').addEventListener('click', () =>
+      document.getElementById('modal-empresas').classList.add('oculto'));
+
+    function renderizarPanelEmpresas() {
+      const cont = document.getElementById('lista-empresas');
+      cont.innerHTML = '';
+      RUBROS_CERTIFICABLES.forEach(rubro => {
+        const empresas = (empresasCalidad[rubro] || []).slice().sort((a,b)=>a.localeCompare(b));
+        const div = document.createElement('div');
+        div.className = 'empresa-rubro';
+        div.innerHTML = `<div class="empresa-rubro-titulo">${escapeHtml(rubro)}</div>
+          <div class="empresa-chips">
+            ${empresas.map(e => `<span class="empresa-chip">${escapeHtml(e)}<button class="empresa-quitar" data-rubro="${escapeHtml(rubro)}" data-empresa="${escapeHtml(e)}">✕</button></span>`).join('') || '<span class="empresa-vacio">Sin empresas</span>'}
+          </div>
+          <div class="empresa-add">
+            <input type="text" placeholder="Agregar empresa…" data-rubro="${escapeHtml(rubro)}">
+            <button class="empresa-add-btn" data-rubro="${escapeHtml(rubro)}">+</button>
+          </div>`;
+        cont.appendChild(div);
+      });
+      // Quitar empresa
+      cont.querySelectorAll('.empresa-quitar').forEach(b => b.addEventListener('click', async () => {
+        const { rubro, empresa } = b.dataset;
+        empresasCalidad[rubro] = (empresasCalidad[rubro] || []).filter(e => e !== empresa);
+        await guardarEmpresas(); renderizarPanelEmpresas();
+      }));
+      // Agregar empresa
+      const agregar = async (rubro, input) => {
+        const val = input.value.trim();
+        if (!val) return;
+        empresasCalidad[rubro] = empresasCalidad[rubro] || [];
+        if (!empresasCalidad[rubro].includes(val)) empresasCalidad[rubro].push(val);
+        await guardarEmpresas(); renderizarPanelEmpresas();
+      };
+      cont.querySelectorAll('.empresa-add-btn').forEach(b => b.addEventListener('click', () => {
+        const input = cont.querySelector(`.empresa-add input[data-rubro="${CSS.escape(b.dataset.rubro)}"]`);
+        agregar(b.dataset.rubro, input);
+      }));
+      cont.querySelectorAll('.empresa-add input').forEach(inp => inp.addEventListener('keydown', e => {
+        if (e.key === 'Enter') agregar(inp.dataset.rubro, inp);
+      }));
+    }
+
+    async function guardarEmpresas() {
+      try {
+        await setDoc(doc(db, 'config', 'empresas'),
+          { porRubro: empresasCalidad, actualizadoEn: serverTimestamp() }, { merge: true });
+      } catch (e) { console.error(e); alert('No se pudieron guardar las empresas.'); }
+    }
   </script>
 
   <style>
@@ -1675,13 +2333,91 @@
     #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--bg3);color:var(--text);padding:10px 20px;border-radius:20px;border:1px solid var(--border);font-size:13px;opacity:0;transition:opacity 0.3s,transform 0.3s;z-index:200;}
     #toast.visible{opacity:1;transform:translateX(-50%) translateY(0);}
 
+    /* ═══ HOME ═══ */
+    #pantalla-home{height:100vh;display:flex;flex-direction:column;}
+    .home-body{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:40px;padding:24px;}
+    .home-titulo{text-align:center;}
+    .home-titulo h1{font-size:26px;font-weight:700;letter-spacing:-0.3px;}
+    .home-titulo p{color:var(--text2);font-size:14px;margin-top:6px;}
+    .home-botones{display:flex;gap:20px;flex-wrap:wrap;justify-content:center;max-width:720px;}
+    .home-card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:32px 28px;width:320px;max-width:100%;display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center;transition:border-color var(--trans),transform var(--trans),background var(--trans);}
+    .home-card:hover{border-color:var(--accent);transform:translateY(-3px);background:var(--bg3);}
+    .home-card-icono{width:72px;height:72px;border-radius:18px;background:rgba(200,169,110,0.12);display:flex;align-items:center;justify-content:center;color:var(--accent);}
+    .home-card-icono svg{width:36px;height:36px;}
+    .home-card-titulo{font-size:18px;font-weight:700;color:var(--text);}
+    .home-card-desc{font-size:13px;color:var(--text2);line-height:1.5;}
+
+    /* ═══ CALIDAD ═══ */
+    #pantalla-calidad{height:100vh;display:flex;flex-direction:column;}
+    .calidad-body{flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:16px;}
+    .calidad-selectores{display:flex;gap:12px;flex-wrap:wrap;}
+    .calidad-selectores .campo-filtro{flex:1;min-width:150px;}
+    .calidad-leyenda{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--text2);}
+    .calidad-leyenda span{display:inline-flex;align-items:center;gap:6px;}
+    .calidad-leyenda .chip{width:14px;height:14px;border-radius:4px;display:inline-block;border:1px solid rgba(255,255,255,0.15);}
+    .chip.estado-sin-inspeccion{background:#e05252;}
+    .chip.estado-con-pendientes{background:#e8a33d;}
+    .chip.estado-lista{background:#4aa3df;}
+    .chip.estado-certificada{background:#2ecc71;}
+    .calidad-croquis{background:#fdfdfb;border:1px solid var(--border);border-radius:12px;padding:20px;min-height:300px;display:flex;align-items:center;justify-content:center;}
+    .calidad-croquis svg{width:100%;height:auto;max-height:70vh;}
+    .cal-placeholder{color:#7a8090;font-size:14px;text-align:center;line-height:1.6;}
+    /* Estados de las unidades del croquis */
+    .calidad-croquis .unidad{transition:fill .2s ease, filter .2s ease;}
+    .calidad-croquis .unidad:hover{filter:brightness(1.12);}
+    .calidad-croquis .unidad.estado-sin-inspeccion{fill:#e05252;}
+    .calidad-croquis .unidad.estado-con-pendientes{fill:#e8a33d;}
+    .calidad-croquis .unidad.estado-lista{fill:#4aa3df;}
+    .calidad-croquis .unidad.estado-certificada{fill:#2ecc71;}
+    .calidad-croquis .unidad-etiqueta path{fill:#fff!important;}
+
+    /* Panel detalle unidad (mismo patrón que panel-obs) */
+    #cal-detalle{position:absolute;right:0;top:0;bottom:0;width:360px;background:var(--bg2);border-left:1px solid var(--border);display:flex;flex-direction:column;transform:translateX(100%);transition:transform 0.3s ease;z-index:12;box-shadow:-4px 0 20px rgba(0,0,0,0.3);}
+    #cal-detalle.abierto{transform:translateX(0);}
+    #pantalla-calidad{position:relative;}
+    .cal-detalle-estado-row{margin-bottom:4px;}
+    .cal-badge-estado{display:inline-block;font-size:11px;font-weight:700;padding:5px 12px;border-radius:20px;text-transform:uppercase;letter-spacing:0.4px;}
+    .estado-badge-sin-inspeccion{background:rgba(224,82,82,0.15);color:#e05252;}
+    .estado-badge-con-pendientes{background:rgba(232,163,61,0.15);color:#e8a33d;}
+    .estado-badge-lista{background:rgba(74,163,223,0.15);color:#4aa3df;}
+    .estado-badge-certificada{background:rgba(46,204,113,0.15);color:#2ecc71;}
+    .cal-obs-item{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:8px;border-left:3px solid var(--border);}
+    .cal-obs-item.pend{border-left-color:var(--pin-pend);}
+    .cal-obs-item.res{border-left-color:var(--success);}
+    .cal-obs-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}
+    .cal-obs-desc{font-size:12px;color:var(--text);}
+    .cal-obs-nota{font-size:11px;color:var(--text2);margin-top:4px;font-style:italic;}
+    .cal-vacio{color:var(--text2);font-size:13px;padding:8px 0;}
+    #cal-detalle-certs h4{font-size:12px;text-transform:uppercase;letter-spacing:0.4px;color:var(--text2);margin:14px 0 8px;}
+    .cal-cert-item{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 10px;margin-bottom:6px;font-size:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+    .cal-cert-fecha{color:var(--text2);}
+    .cal-btn-repdf{margin-left:auto;background:var(--bg2);color:var(--accent2);border:1px solid var(--border);border-radius:4px;padding:3px 8px;font-size:11px;}
+    .cal-btn-repdf:hover{background:var(--border);}
+    #cal-btn-certificar{flex:1;background:var(--accent);color:var(--accent-text);padding:11px;border-radius:var(--radius-sm);font-weight:600;font-size:14px;}
+    #cal-btn-certificar:hover{background:var(--accent2);}
+
+    /* Panel empresas */
+    .empresa-rubro{padding:12px 0;border-bottom:1px solid var(--border);}
+    .empresa-rubro-titulo{font-size:13px;font-weight:700;color:var(--accent2);margin-bottom:8px;}
+    .empresa-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;}
+    .empresa-chip{background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:4px 8px 4px 12px;font-size:12px;display:inline-flex;align-items:center;gap:6px;}
+    .empresa-quitar{background:none;border:none;color:var(--text2);font-size:12px;cursor:pointer;padding:0 2px;}
+    .empresa-quitar:hover{color:var(--danger);}
+    .empresa-vacio{font-size:12px;color:var(--text2);font-style:italic;}
+    .empresa-add{display:flex;gap:6px;}
+    .empresa-add input{flex:1;font-size:12px;padding:6px 8px;}
+    .empresa-add-btn{background:var(--accent);color:var(--accent-text);border-radius:var(--radius-sm);width:32px;font-weight:700;font-size:16px;flex-shrink:0;}
+
     @media(max-width:600px){
       #panel-obs{width:100%;max-width:360px;}
       #panel-lista-obs{width:100%;max-width:360px;}
+      #cal-detalle{width:100%;max-width:100%;}
       .btn-icono-texto span{display:none;}
       .login-card{width:100%;padding:24px 20px;}
       .user-texts{display:none;}
       .pestaña-nombre{max-width:80px;}
+      .home-card{width:100%;}
+      #home-user-nombre{display:none;}
     }
   </style>
 </head>
@@ -1709,9 +2445,45 @@
     </div>
   </div>
 
+  <div id="pantalla-home" class="oculto">
+    <header class="header">
+      <div class="header-marca">
+        <div class="header-icono"><img src="logo.png" alt="GC"></div>
+        <div><div class="header-titulo">Goldstein Construcciones</div><div class="header-subtitulo">Catamarán 12</div></div>
+      </div>
+      <div class="header-acciones">
+        <span id="home-user-nombre" class="user-nombre" style="margin-right:8px"></span>
+        <button class="btn-logout btn-secondary">Cerrar sesión</button>
+      </div>
+    </header>
+    <div class="home-body">
+      <div class="home-titulo">
+        <h1>¿Qué querés hacer?</h1>
+        <p>Elegí una herramienta para empezar</p>
+      </div>
+      <div class="home-botones">
+        <button id="btn-home-inspeccionar" class="home-card">
+          <div class="home-card-icono">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+          </div>
+          <div class="home-card-titulo">Inspeccionar</div>
+          <div class="home-card-desc">Planos, observaciones y sincronización con el Sheet</div>
+        </button>
+        <button id="btn-home-calidad" class="home-card">
+          <div class="home-card-icono">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><path d="M21 12c-1 0-3-1-3-3s2-3 3-3-2-1-3-3 1-3-1-3-3 2-3 3-1-2-3-3-3 2-3 3 2 1 3 3-1 3-3 3 3 1 3 3-2 3-3 3 3 1 3 3 1 3 3 3 1-2 3-3 3 2 3 3z" opacity="0"/><circle cx="12" cy="12" r="9"/></svg>
+          </div>
+          <div class="home-card-titulo">Certificado de calidad</div>
+          <div class="home-card-desc">Estado de cada unidad por rubro y emisión de certificados</div>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <div id="pantalla-planos" class="oculto">
     <header class="header">
       <div class="header-marca">
+        <button class="btn-ir-home btn-volver" title="Inicio">⌂</button>
         <div class="header-icono"><img src="logo.png" alt="GC Inspector"></div>
         <div><div class="header-titulo">Inspector de obra</div><div class="header-subtitulo">Catamarán 12</div></div>
       </div>
@@ -1864,6 +2636,94 @@
           <button id="btn-guardar-obs">Guardar</button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- ─── PANTALLA CALIDAD ─── -->
+  <div id="pantalla-calidad" class="oculto">
+    <header class="header">
+      <div class="header-marca">
+        <button class="btn-ir-home btn-volver" title="Inicio">⌂</button>
+        <div class="header-icono"><img src="logo.png" alt="GC"></div>
+        <div><div class="header-titulo">Certificado de calidad</div><div class="header-subtitulo">Catamarán 12</div></div>
+      </div>
+      <div class="header-acciones">
+        <button id="cal-btn-empresas" class="btn-secondary oculto">🏢 Empresas</button>
+        <button id="cal-btn-actualizar" class="btn-secondary">↻ Actualizar</button>
+        <button class="btn-logout btn-secondary">Cerrar sesión</button>
+      </div>
+    </header>
+    <div class="calidad-body">
+      <div class="calidad-selectores">
+        <div class="campo-filtro"><label>Bloque</label>
+          <select id="cal-bloque"><option value="">— Bloque —</option><option value="T">Torre</option><option value="B">Basamento</option></select>
+        </div>
+        <div class="campo-filtro"><label>Nivel</label>
+          <select id="cal-nivel"><option value="">— Nivel —</option></select>
+        </div>
+        <div class="campo-filtro"><label>Rubro</label>
+          <select id="cal-rubro"><option value="">— Elegí un rubro —</option></select>
+        </div>
+      </div>
+      <div class="calidad-leyenda">
+        <span><span class="chip estado-sin-inspeccion"></span>Sin inspección</span>
+        <span><span class="chip estado-con-pendientes"></span>Con pendientes</span>
+        <span><span class="chip estado-lista"></span>Listo para certificar</span>
+        <span><span class="chip estado-certificada"></span>Certificado</span>
+      </div>
+      <div id="cal-croquis-cont" class="calidad-croquis">
+        <div class="cal-placeholder">Elegí bloque, nivel y rubro para ver el croquis.</div>
+      </div>
+    </div>
+
+    <!-- Panel de detalle de unidad -->
+    <div id="cal-detalle" class="oculto">
+      <div class="panel-header">
+        <div>
+          <h3 id="cal-detalle-titulo">Unidad</h3>
+          <span id="cal-detalle-sub" style="font-size:11px;color:var(--text2)"></span>
+        </div>
+        <button id="cal-detalle-cerrar" class="btn-cerrar-panel">✕</button>
+      </div>
+      <div class="panel-body">
+        <div class="cal-detalle-estado-row">
+          <span id="cal-detalle-estado" class="cal-badge-estado">—</span>
+        </div>
+        <div id="cal-detalle-obs"></div>
+        <div id="cal-detalle-certs"></div>
+      </div>
+      <div class="panel-footer">
+        <button id="cal-btn-certificar" class="oculto">Generar certificado de calidad</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: elegir responsable y certificar -->
+  <div id="modal-certificar" class="modal-overlay oculto">
+    <div class="modal" style="width:420px">
+      <div class="modal-header"><h3>Emitir certificado</h3><button id="cal-cert-cancelar" class="btn-cerrar-modal">✕</button></div>
+      <div class="modal-body">
+        <div class="campo">
+          <label>Responsable / Subcontratista</label>
+          <select id="cal-cert-responsable"><option value="">— Elegí responsable —</option></select>
+        </div>
+        <div id="cal-cert-otro-wrap" class="campo oculto">
+          <label>Especificá el responsable</label>
+          <input type="text" id="cal-cert-otro" placeholder="Nombre de la empresa / persona">
+        </div>
+        <p id="cal-cert-aviso" style="font-size:12px;color:var(--text2);margin-top:4px"></p>
+      </div>
+      <div class="panel-footer">
+        <button id="cal-cert-confirmar" class="btn-primary" style="flex:1">Confirmar y generar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: admin de empresas -->
+  <div id="modal-empresas" class="modal-overlay oculto">
+    <div class="modal" style="width:520px;max-height:85vh">
+      <div class="modal-header"><h3>Empresas por rubro</h3><button id="cal-empresas-cerrar" class="btn-cerrar-modal">✕</button></div>
+      <div class="modal-body"><div id="lista-empresas"></div></div>
     </div>
   </div>
 
