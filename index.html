@@ -985,6 +985,19 @@
           .map(d => d.data().fotoUrl)
           .filter(Boolean)
           .map(url => deleteObject(ref(storage, url)).catch(() => {})));
+        // Borrar del Sheet las filas de las observaciones que estaban sincronizadas.
+        // El borrado de una obs individual ya hace esto; al eliminar el plano completo
+        // hay que replicarlo o quedan filas huérfanas en el Sheet. Secuencial y
+        // best-effort (el Sheet es secundario; se registra el fallo pero no se aborta
+        // ni se reintenta el borrado que ya se hizo en Firestore).
+        const numerosSheet = snap.docs
+          .filter(d => d.data().sincronizadoSheet)
+          .map(d => d.data().numero)
+          .filter(Boolean);
+        for (const numero of numerosSheet) {
+          try { await llamarAppsScript({ accion:'delete', id:numero }); }
+          catch (e) { console.warn('No se pudo borrar del Sheet:', e); registrarError('eliminar_plano_sheet', e, {obsId:numero, planoId:plano.id}); }
+        }
       } catch (e) {
         console.error(e);
         alert('No se pudo eliminar el plano. Intentá de nuevo.');
