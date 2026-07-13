@@ -41,7 +41,7 @@
     import { getAuth, signInWithPopup, signOut, GoogleAuthProvider, onAuthStateChanged }
       from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
     import { getFirestore, collection, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc,
-      query, where, orderBy, onSnapshot, serverTimestamp, getDocs, runTransaction }
+      query, where, orderBy, onSnapshot, serverTimestamp, getDocs, runTransaction, writeBatch }
       from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
     import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject }
       from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
@@ -969,9 +969,27 @@
     }
     async function eliminarPlano(plano) {
       if (!confirm(`¿Eliminar "${plano.nombre}"? Se borrarán todas sus observaciones.`)) return;
-      const snap = await getDocs(query(collection(db,'observaciones'), where('planoId','==',plano.id)));
-      await Promise.all(snap.docs.map(d => deleteDoc(doc(db,'observaciones',d.id))));
-      await deleteDoc(doc(db,'planos',plano.id));
+      try {
+        const snap = await getDocs(query(collection(db,'observaciones'), where('planoId','==',plano.id)));
+        // Borrado atómico: el plano y todas sus observaciones se eliminan en un
+        // único batch, así no quedan estados a medias (obs huérfanas o un plano
+        // sin sus obs) si algo falla a mitad de camino. Un batch admite hasta 500
+        // operaciones; un plano con esa cantidad de observaciones es impensable acá.
+        const batch = writeBatch(db);
+        snap.docs.forEach(d => batch.delete(doc(db,'observaciones',d.id)));
+        batch.delete(doc(db,'planos',plano.id));
+        await batch.commit();
+        // Recién con el borrado confirmado en Firestore, limpiamos las fotos de
+        // Storage (best-effort: una foto huérfana no rompe nada, solo ocupa lugar).
+        await Promise.all(snap.docs
+          .map(d => d.data().fotoUrl)
+          .filter(Boolean)
+          .map(url => deleteObject(ref(storage, url)).catch(() => {})));
+      } catch (e) {
+        console.error(e);
+        alert('No se pudo eliminar el plano. Intentá de nuevo.');
+        registrarError('eliminar_plano', e, {planoId: plano.id});
+      }
     }
 
     // ─── NAVEGADOR DROPBOX ────────────────────────────────────────────────────
