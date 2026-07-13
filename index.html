@@ -670,8 +670,12 @@
     }
 
     // ─── PANTALLA PLANOS ──────────────────────────────────────────────────────
-    // Migrar planos existentes que no tienen metadata parseada
+    // Migrar planos existentes que no tienen metadata parseada.
+    // Solo corre para admin: es una escritura masiva sobre 'planos' que no tiene
+    // sentido que dispare cada inspector/lector al entrar (además de que las
+    // reglas de Firestore la rechazarían, llenando la consola de errores).
     async function migrarMetadataPlanos() {
+      if (currentUserData?.rol !== 'admin') return;
       const snap = await getDocs(collection(db, 'planos'));
       const batch = [];
       snap.forEach(d => {
