@@ -788,20 +788,43 @@
       }
     }
 
+    // Versión de las migraciones de datos. Subir este número cuando se agregue una
+    // migración nueva que deba volver a barrer los datos ya existentes.
+    const VERSION_MIGRACIONES = 1;
+
+    // Orquesta las migraciones/correcciones de datos legacy. Antes las tres corrían
+    // en CADA entrada a la pantalla de planos, releyendo las colecciones 'planos' y
+    // 'observaciones' completas aunque ya estuviera todo migrado. Ahora se corren una
+    // sola vez: un flag de versión en config/migraciones evita repetir el barrido.
+    // Los planos nuevos ya guardan su metadata al crearse (seleccionarDropbox), así
+    // que estas migraciones solo hacen falta para los datos viejos.
+    // Si algo falla, NO se escribe el flag → se reintenta en la próxima entrada.
+    async function ejecutarMigracionesSiHaceFalta() {
+      if (currentUserData?.rol !== 'admin') return;
+      const ref = doc(db, 'config', 'migraciones');
+      try {
+        const snap = await getDoc(ref);
+        const versionActual = snap.exists() ? (snap.data().version || 0) : 0;
+        if (versionActual >= VERSION_MIGRACIONES) return; // ya está al día
+        // Secuencial a propósito: migrarMetadataPlanos escribe la metadata de los
+        // planos, y migrarDeptoObservaciones/corregirDeptosInvalidos la leen después.
+        await migrarMetadataPlanos();
+        await migrarDeptoObservaciones();
+        await corregirDeptosInvalidos();
+        await setDoc(ref, { version: VERSION_MIGRACIONES, actualizadoEn: serverTimestamp() }, { merge: true });
+        console.log(`✓ Migraciones de datos ejecutadas (v${VERSION_MIGRACIONES})`);
+      } catch (e) {
+        console.warn('Migraciones:', e);
+      }
+    }
+
     async function iniciarPantallaPlanos() {
       document.getElementById('user-nombre').textContent = currentUserData.nombre || currentUser.email;
       document.getElementById('user-email').textContent = currentUser.email;
       if (currentUser.photoURL) document.getElementById('user-avatar').src = currentUser.photoURL;
 
-      // Migrar planos existentes sin metadata (corre silenciosamente)
-      migrarMetadataPlanos().catch(e => console.warn('Migración metadata:', e));
-
-      // Migrar observaciones existentes sin depto (corre silenciosamente, solo admin)
-      // y después corregir deptos inválidos que hayan quedado guardados
-      // (encadenadas para que la corrección vea el resultado del backfill)
-      migrarDeptoObservaciones()
-        .then(() => corregirDeptosInvalidos())
-        .catch(e => console.warn('Migración depto:', e));
+      // Migraciones de datos legacy — corren una sola vez (ver flag de versión).
+      ejecutarMigracionesSiHaceFalta();
 
       cargarListaPlanos();
     }
