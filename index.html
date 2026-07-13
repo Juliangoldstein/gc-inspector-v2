@@ -1420,7 +1420,19 @@
       }
       document.getElementById('obs-rubro').value=obs.rubro||'';
       actualizarResponsables(obs.rubro);
-      document.getElementById('obs-responsable').value=obs.responsable||'';
+      // Restaurar el responsable. Si se guardó vía "Otro" (texto libre), no va a
+      // figurar entre las opciones del select: en ese caso seleccionamos "Otro" y
+      // volcamos el valor al campo de texto, para no perderlo al reabrir/guardar.
+      const selResp = document.getElementById('obs-responsable');
+      const respGuardado = obs.responsable || '';
+      if (respGuardado && ![...selResp.options].some(o => o.value === respGuardado)) {
+        selResp.value = 'Otro';
+        document.getElementById('obs-responsable-otro').classList.remove('oculto');
+        document.getElementById('obs-responsable-otro-texto').value = respGuardado;
+      } else {
+        selResp.value = respGuardado;
+        document.getElementById('obs-responsable-otro').classList.add('oculto');
+      }
       document.getElementById('obs-descripcion').value=obs.descripcion||'';
       document.getElementById('obs-severidad').value=obs.severidad||'Media';
       document.getElementById('obs-estado').value=obs.estado||'Pendiente';
@@ -1434,13 +1446,13 @@
         document.getElementById('btn-eliminar-obs').classList.add('oculto');
         document.getElementById('btn-guardar-obs').classList.add('oculto');
         document.getElementById('panel-obs').classList.add('modo-lectura');
-        ['obs-rubro','obs-responsable','obs-descripcion','obs-severidad','obs-estado','obs-nota'].forEach(id=>{document.getElementById(id).disabled=true;});
+        ['obs-rubro','obs-responsable','obs-responsable-otro-texto','obs-descripcion','obs-severidad','obs-estado','obs-nota'].forEach(id=>{document.getElementById(id).disabled=true;});
         document.getElementById('obs-foto').disabled=true;
       } else {
         document.getElementById('btn-eliminar-obs').classList.remove('oculto');
         document.getElementById('btn-guardar-obs').classList.remove('oculto');
         document.getElementById('panel-obs').classList.remove('modo-lectura');
-        ['obs-rubro','obs-responsable','obs-descripcion','obs-severidad','obs-estado','obs-nota'].forEach(id=>{document.getElementById(id).disabled=false;});
+        ['obs-rubro','obs-responsable','obs-responsable-otro-texto','obs-descripcion','obs-severidad','obs-estado','obs-nota'].forEach(id=>{document.getElementById(id).disabled=false;});
         document.getElementById('obs-foto').disabled=false;
       }
       // Después del bloque lector/no-lector: poblarSelectDepto decide por sí
