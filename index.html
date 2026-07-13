@@ -1951,6 +1951,12 @@
     });
     document.getElementById('cal-nivel').addEventListener('change', renderizarCroquisCalidad);
     document.getElementById('cal-rubro').addEventListener('change', renderizarCroquisCalidad);
+    document.getElementById('cal-limpiar').addEventListener('click', () => {
+      document.getElementById('cal-bloque').value = '';
+      document.getElementById('cal-rubro').value = '';
+      actualizarNivelesCalidad();   // con bloque vacío, resetea el select de Nivel al placeholder
+      renderizarCroquisCalidad();    // vuelve al estado inicial (croquis en placeholder)
+    });
     document.getElementById('cal-btn-actualizar').addEventListener('click', async () => {
       const btn = document.getElementById('cal-btn-actualizar');
       btn.disabled = true;
@@ -2648,14 +2654,14 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
           </div>
           <div class="home-card-titulo">Inspeccionar</div>
-          <div class="home-card-desc">Planos, observaciones y sincronización con el Sheet</div>
+          <div class="home-card-desc">Marcá nuevas observaciones en planos y revisá el historial de cada unidad.</div>
         </button>
         <button id="btn-home-calidad" class="home-card">
           <div class="home-card-icono">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><path d="M21 12c-1 0-3-1-3-3s2-3 3-3-2-1-3-3 1-3-1-3-3 2-3 3-1-2-3-3-3 2-3 3 2 1 3 3-1 3-3 3 3 1 3 3-2 3-3 3 3 1 3 3 1 3 3 3 1-2 3-3 3 2 3 3z" opacity="0"/><circle cx="12" cy="12" r="9"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m9 12 2 2 4-4"/></svg>
           </div>
           <div class="home-card-titulo">Certificado de calidad</div>
-          <div class="home-card-desc">Estado de cada unidad por rubro y emisión de certificados</div>
+          <div class="home-card-desc">Emisión del certificado final por unidad y rubro inspeccionado.</div>
         </button>
       </div>
     </div>
@@ -2845,6 +2851,7 @@
         <div class="campo-filtro"><label>Rubro</label>
           <select id="cal-rubro"><option value="">— Elegí un rubro —</option></select>
         </div>
+        <button id="cal-limpiar" class="btn-limpiar" style="align-self:flex-end">✕ Limpiar</button>
       </div>
       <div class="calidad-leyenda">
         <span><span class="chip estado-sin-inspeccion"></span>Sin inspección</span>
