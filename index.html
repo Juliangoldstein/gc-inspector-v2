@@ -1657,8 +1657,18 @@
         }
         fotoInput.dataset.eliminada = '';
         if(est.obsSeleccionada){
+          const estadoPrevio=est.observaciones[est.obsSeleccionada]?.estado;
           const data={rubro,responsable,descripcion,severidad,estado,depto,notaResolucion:nota,fotoUrl,actualizadoEn:serverTimestamp(),sincronizadoSheet:false};
-          if(estado==='Resuelta'&&est.observaciones[est.obsSeleccionada]?.estado!=='Resuelta')data.resueltaEn=serverTimestamp();
+          if(estado==='Resuelta'){
+            // Registrar la fecha de resolución solo al pasar A Resuelta; si ya estaba
+            // resuelta no la pisamos (conserva la fecha original de resolución).
+            if(estadoPrevio!=='Resuelta')data.resueltaEn=serverTimestamp();
+          } else {
+            // Si dejó de estar Resuelta, borramos la fecha para que no quede como
+            // "fecha de resolución" fantasma en el Sheet ni en los certificados.
+            // La nota de resolución se conserva siempre.
+            data.resueltaEn=null;
+          }
           await updateDoc(doc(db,'observaciones',est.obsSeleccionada),data);
         } else {
           const numero = await obtenerSiguienteNumeroGlobal();
