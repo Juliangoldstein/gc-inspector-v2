@@ -2614,8 +2614,16 @@
 
     #pantalla-inspector{height:100vh;display:flex;flex-direction:column;}
     .inspector-header{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 16px;height:56px;display:flex;align-items:center;gap:12px;flex-shrink:0;}
-    .btn-volver{background:transparent;color:var(--text2);width:32px;height:32px;border-radius:50%;border:none;font-size:18px;line-height:1;display:flex;align-items:center;justify-content:center;}
-    .btn-volver:hover{background:var(--bg3);color:var(--text);}
+    /* Ícono de trazo como los del home (.home-card-icono) con el fondo de
+       .btn-secondary. Mismo padding y borde que .btn-secondary, y el ícono mide
+       una altura de línea (1lh): así el alto es idéntico al de los botones con
+       texto del header por construcción, sin depender de un px fijo que se
+       desalinearía si cambia la tipografía. El padding parejo lo deja cuadrado.
+       El fallback en px cubre navegadores sin soporte de la unidad lh. */
+    .btn-volver{background:var(--bg3);color:var(--text);padding:7px;border-radius:var(--radius-sm);border:1px solid var(--border);line-height:normal;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .15s;}
+    .btn-volver svg{width:17px;height:17px;display:block;}
+    @supports (height:1lh){ .btn-volver svg{width:1lh;height:1lh;} }
+    .btn-volver:hover{background:var(--border);color:var(--text);}
 
     /* ── Pestañas ── */
     #pestañas-bar{background:var(--bg);border-bottom:1px solid var(--border);display:flex;align-items:flex-end;padding:0 16px;gap:2px;flex-shrink:0;overflow-x:auto;min-height:36px;}
@@ -2884,7 +2892,9 @@
   <div id="pantalla-planos" class="oculto">
     <header class="header">
       <div class="header-marca">
-        <button class="btn-ir-home btn-volver" title="Inicio">⌂</button>
+        <button class="btn-ir-home btn-volver" title="Inicio">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        </button>
         <div class="header-icono"><img src="logo.png" alt="GC Inspector"></div>
         <div><div class="header-titulo">Inspector de obra</div><div class="header-subtitulo">Catamarán 12</div></div>
       </div>
@@ -2959,7 +2969,9 @@
 
   <div id="pantalla-inspector" class="oculto">
     <header class="inspector-header">
-      <button id="btn-volver" class="btn-volver" title="Ir al inicio">⌂</button>
+      <button id="btn-volver" class="btn-volver" title="Ir al inicio">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      </button>
       <div class="inspector-titulo"><h1 id="inspector-titulo">Plano</h1><span id="inspector-obra"></span></div>
       <button class="btn-logout btn-secondary" style="font-size:12px;padding:6px 10px">Cerrar sesión</button>
     </header>
@@ -3044,7 +3056,9 @@
   <div id="pantalla-calidad" class="oculto">
     <header class="header">
       <div class="header-marca">
-        <button class="btn-ir-home btn-volver" title="Inicio">⌂</button>
+        <button class="btn-ir-home btn-volver" title="Inicio">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        </button>
         <div class="header-icono"><img src="logo.png" alt="GC"></div>
         <div><div class="header-titulo">Certificado de calidad</div><div class="header-subtitulo">Catamarán 12</div></div>
       </div>
