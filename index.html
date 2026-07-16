@@ -442,7 +442,7 @@
             bloqueCod:     b,
             depto:         unidadValida || '',
             disciplina:    DISCIPLINAS[d],
-            nivel:         NIVELES[n] || `Piso ${parseInt(n)}`,
+            nivel:         NIVELES[n] || `Piso ${parseInt(n, 10)}`,
             bloque:        BLOQUES[b],
           };
         }
@@ -968,7 +968,7 @@
         </div>
         <div class="plano-acciones">
           <button class="btn-abrir">Abrir →</button>
-          ${currentUserData.rol==='admin'?`<button class="btn-eliminar-plano">🗑</button>`:''}
+          ${currentUserData?.rol==='admin'?`<button class="btn-eliminar-plano">🗑</button>`:''}
         </div>`;
       div.querySelector('.btn-abrir').addEventListener('click', () => abrirPlano(plano));
       const be = div.querySelector('.btn-eliminar-plano');
@@ -1385,7 +1385,7 @@
         pin.style.left = (obs.x*canvas.width)+'px';
         pin.style.top  = (obs.y*canvas.height)+'px';
         const numeroCorto = (obs.numero||'?').replace(/^OBS-0*/,'') || '0';
-        pin.innerHTML = `<span class="pin-num">${numeroCorto}</span>`;
+        pin.innerHTML = `<span class="pin-num">${escapeHtml(numeroCorto)}</span>`;
         pin.title = `${obs.numero} — ${obs.rubro}`;
         pin.addEventListener('click', e=>{e.stopPropagation();abrirPanelObs(obs.id);});
         overlay.appendChild(pin);
@@ -1612,7 +1612,7 @@
     document.getElementById('obs-foto').addEventListener('change', e=>{ const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{document.getElementById('obs-foto-preview').src=ev.target.result;document.getElementById('obs-foto-preview').classList.remove('oculto');document.getElementById('btn-eliminar-foto').classList.remove('oculto');};r.readAsDataURL(f); });
 
     document.getElementById('obs-foto-preview').addEventListener('click', (e) => {
-      if (e.target.src) window.open(e.target.src, '_blank');
+      if (e.target.src) window.open(e.target.src, '_blank', 'noopener');
     });
     document.getElementById('btn-eliminar-foto').addEventListener('click', () => {
       // Marcar foto para eliminar — se borra al guardar
@@ -1656,7 +1656,11 @@
         let fotoUrl = est.obsSeleccionada ? (est.observaciones[est.obsSeleccionada]?.fotoUrl||'') : '';
         const fotoFile = fotoInput.files[0];
         if (fotoFile) {
-          const fotoRef = ref(storage,`fotos/${est.plano.id}/${Date.now()}_${fotoFile.name}`);
+          // Normalizar el nombre del archivo: lo pone el dispositivo del usuario y puede
+          // traer espacios, acentos o barras. Se conservan letras, números, punto, guion
+          // y guion bajo (el punto, para no perder la extensión).
+          const nombreFoto = fotoFile.name.replace(/[^\w.\-]+/g, '_');
+          const fotoRef = ref(storage,`fotos/${est.plano.id}/${Date.now()}_${nombreFoto}`);
           await uploadBytes(fotoRef, fotoFile);
           fotoUrl = await getDownloadURL(fotoRef);
         } else if (fotoEliminada) {
@@ -1921,7 +1925,7 @@
       const snap=await getDocs(collection(db,'usuarios'));lista.innerHTML='';
       snap.forEach(d=>{
         const u={id:d.id,...d.data()};const div=document.createElement('div');div.className='item-usuario';
-        div.innerHTML=`<div class="usuario-info"><div class="usuario-nombre">${escapeHtml(u.nombre||u.email)}</div><div class="usuario-email">${escapeHtml(u.email)}</div></div><div class="usuario-acciones"><select class="sel-rol" data-uid="${u.id}" style="width:90px;padding:5px 6px;font-size:11px;"><option value="lector" ${u.rol==='lector'?'selected':''}>Lector</option><option value="inspector" ${u.rol==='inspector'?'selected':''}>Inspector</option><option value="admin" ${u.rol==='admin'?'selected':''}>Admin</option></select><button class="btn-toggle-auth ${u.autorizado?'activo':''}" data-uid="${u.id}" data-auth="${u.autorizado}">${u.autorizado?'✓ Autorizado':'Autorizar'}</button></div>`;
+        div.innerHTML=`<div class="usuario-info"><div class="usuario-nombre">${escapeHtml(u.nombre||u.email)}</div><div class="usuario-email">${escapeHtml(u.email)}</div></div><div class="usuario-acciones"><select class="sel-rol" data-uid="${escapeHtml(u.id)}" style="width:90px;padding:5px 6px;font-size:11px;"><option value="lector" ${u.rol==='lector'?'selected':''}>Lector</option><option value="inspector" ${u.rol==='inspector'?'selected':''}>Inspector</option><option value="admin" ${u.rol==='admin'?'selected':''}>Admin</option></select><button class="btn-toggle-auth ${u.autorizado?'activo':''}" data-uid="${escapeHtml(u.id)}" data-auth="${escapeHtml(u.autorizado)}">${u.autorizado?'✓ Autorizado':'Autorizar'}</button></div>`;
         div.querySelector('.btn-toggle-auth').addEventListener('click',async e=>{const b=e.currentTarget;await updateDoc(doc(db,'usuarios',b.dataset.uid),{autorizado:b.dataset.auth!=='true'});cargarPanelUsuarios();});
         const rs=div.querySelector('.sel-rol');if(rs)rs.addEventListener('change',async e=>{await updateDoc(doc(db,'usuarios',e.currentTarget.dataset.uid),{rol:e.currentTarget.value});});
         lista.appendChild(div);
@@ -2034,7 +2038,7 @@
       selNivel.innerHTML = '<option value="">— Nivel —</option>';
       if (!bloque) return;
       // Orden por código numérico de nivel
-      const niveles = Object.keys(UNIDADES[bloque] || {}).sort((a, b) => parseInt(a) - parseInt(b));
+      const niveles = Object.keys(UNIDADES[bloque] || {}).sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
       niveles.forEach(nc => {
         const o = document.createElement('option');
         o.value = nc; o.textContent = NIVELES[nc] || ('Nivel ' + nc);
@@ -2130,7 +2134,7 @@
           .map(c => `<div class="cal-cert-item">
             <strong>${escapeHtml(c.numero)}</strong> · ${escapeHtml(c.responsable||'—')}
             <span class="cal-cert-fecha">${c.fecha?.toDate?.()?.toLocaleDateString('es-AR')||''}</span>
-            <button class="cal-btn-repdf" data-cert="${c.id}">PDF</button>
+            <button class="cal-btn-repdf" data-cert="${escapeHtml(c.id)}">PDF</button>
           </div>`).join('');
       }
       document.getElementById('cal-detalle-certs').innerHTML = certHtml;
