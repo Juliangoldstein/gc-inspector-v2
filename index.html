@@ -671,22 +671,11 @@
       return { carpetas: entries.filter(e => e['.tag']==='folder').sort((a,b)=>a.name.localeCompare(b.name)), pdfs: entries.filter(e=>e['.tag']==='file'&&e.name.toLowerCase().endsWith('.pdf')).sort((a,b)=>a.name.localeCompare(b.name)) };
     }
     async function descargarPDF(path) {
-      // [perf] Instrumentación temporal para medir cada etapa de abrir un plano.
-      // Quitar los console/performance de [perf] una vez identificado el cuello de botella.
-      let t = performance.now();
       const token = await getDropboxToken();
-      console.log(`[perf] 1-token Dropbox: ${(performance.now()-t).toFixed(0)} ms`);
-
-      t = performance.now();
       const res = await fetch('https://api.dropboxapi.com/2/files/get_temporary_link', { method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ path }) });
       const data = await res.json();
-      console.log(`[perf] 2-link temporal: ${(performance.now()-t).toFixed(0)} ms`);
       if (!data.link) throw new Error('No se pudo obtener link de Dropbox');
-
-      t = performance.now();
-      const buf = await (await fetch(data.link)).arrayBuffer();
-      console.log(`[perf] 3-descarga PDF: ${(performance.now()-t).toFixed(0)} ms · ${(buf.byteLength/1024).toFixed(0)} KB`);
-      return buf;
+      return await (await fetch(data.link)).arrayBuffer();
     }
 
     // ─── PANTALLA PLANOS ──────────────────────────────────────────────────────
@@ -1113,23 +1102,15 @@
       pestañas.set(plano.id, estado);
 
       // Suscribir a observaciones en tiempo real
-      // [perf] Etapa 5: corre en paralelo a la carga del PDF. Medimos el tiempo
-      // hasta el primer snapshot (traer las obs) y el primer dibujo de pines.
-      const tSub = performance.now();
-      let primerSnap = true;
       estado.obsUnsubscribe = onSnapshot(
         query(collection(db,'observaciones'), where('planoId','==',plano.id), orderBy('creadoEn','asc')),
         snap => {
-          const esPrimero = primerSnap; primerSnap = false;
-          if (esPrimero) console.log(`[perf] 5a-fetch observaciones (1er snapshot): ${(performance.now()-tSub).toFixed(0)} ms · ${snap.size} obs`);
           snap.docChanges().forEach(ch => {
             if (ch.type==='removed') delete estado.observaciones[ch.doc.id];
             else estado.observaciones[ch.doc.id] = { id: ch.doc.id, ...ch.doc.data() };
           });
           if (pestañaActiva === plano.id) {
-            const tPines = performance.now();
             renderizarMarcadores();
-            if (esPrimero) console.log(`[perf] 5b-dibujar pines: ${(performance.now()-tPines).toFixed(1)} ms`);
             actualizarContadorObs();
             if (!document.getElementById('panel-lista-obs').classList.contains('oculto')) renderizarListaObs();
           }
@@ -1224,25 +1205,14 @@
     async function cargarPDF(estado) {
       const spinner = document.getElementById('pdf-spinner');
       spinner.classList.remove('oculto');
-      // [perf] Instrumentación temporal — total de la cadena del PDF (etapas 1→4b).
-      const tTotal = performance.now();
       try {
-        // Etapas 1-3 (token, link, descarga) se miden dentro de descargarPDF.
-        const buf = await descargarPDF(estado.plano.dropboxPath);
-        // [perf] Etapa 4a: pdf.js parsea el arrayBuffer descargado.
-        let t = performance.now();
-        estado.pdfDoc = await pdfjsLib.getDocument({ data: buf }).promise;
-        console.log(`[perf] 4a-pdf.js parse (getDocument): ${(performance.now()-t).toFixed(0)} ms`);
+        estado.pdfDoc = await pdfjsLib.getDocument({ data: await descargarPDF(estado.plano.dropboxPath) }).promise;
         if (estado.pdfDoc.numPages !== estado.plano.paginas) {
           await updateDoc(doc(db,'planos',estado.plano.id), { paginas: estado.pdfDoc.numPages });
           estado.plano.paginas = estado.pdfDoc.numPages;
         }
         actualizarNavegacionPaginas(estado);
-        // [perf] Etapa 4b: render de la primera página en el canvas.
-        t = performance.now();
         await renderizarPagina(estado, estado.pagina, true);
-        console.log(`[perf] 4b-pdf.js render página: ${(performance.now()-t).toFixed(0)} ms`);
-        console.log(`[perf] TOTAL cadena PDF (token→render): ${(performance.now()-tTotal).toFixed(0)} ms`);
       } catch(e) { console.error(e); alert('Error al cargar el PDF.'); registrarError('cargar_pdf', e, {planoId: estado.plano.id}); }
       finally { spinner.classList.add('oculto'); }
     }
