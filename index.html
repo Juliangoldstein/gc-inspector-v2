@@ -2139,9 +2139,11 @@
       }
       document.getElementById('cal-detalle-certs').innerHTML = certHtml;
       document.getElementById('cal-detalle-certs').querySelectorAll('.cal-btn-repdf').forEach(b => {
-        b.addEventListener('click', () => {
+        b.addEventListener('click', async () => {
           const cert = calidadCerts.find(c => c.id === b.dataset.cert);
-          if (cert) generarPDFCertificado(cert);
+          if (!cert) return;
+          try { await generarPDFCertificado(cert); }
+          catch (e) { console.error(e); alert('Error al generar el PDF del certificado.'); registrarError('pdf_certificado', e); }
         });
       });
 
@@ -2234,7 +2236,7 @@
         const ref = await addDoc(collection(db, 'certificados'), certData);
 
         // Generar PDF (usa la fecha local ya que serverTimestamp aún no resolvió)
-        generarPDFCertificado({ ...certData, id: ref.id, fecha: { toDate: () => new Date() } });
+        await generarPDFCertificado({ ...certData, id: ref.id, fecha: { toDate: () => new Date() } });
 
         document.getElementById('modal-certificar').classList.add('oculto');
         mostrarToast(`✓ ${numero} emitido`);
@@ -2265,97 +2267,203 @@
     }
 
     // ── PDF del certificado de calidad ──
-    function generarPDFCertificado(cert) {
+    // ── SISTEMA DE DISEÑO DEL CERTIFICADO ────────────────────────────────────
+    // Tipografía única: todo el PDF usa esta fuente y solo varía el estilo
+    // (normal/bold/italic). MONO se reserva para el código de certificado.
+    const FUENTE = 'helvetica';
+    const MONO   = 'courier';
+    const TAM_CUERPO = 11;
+
+    // Paleta: gris pizarra dominante, dorado apagado como acento puntual y
+    // grises ultra claros para los bloques de datos.
+    const C_DARK   = [15, 23, 42];      // #0f172a — encabezado, títulos, valores
+    const C_ACENTO = [200, 169, 110];   // dorado apagado — detalles finos
+    const C_BLOQUE = [248, 250, 252];   // #f8fafc — fondo de bloques
+    const C_BORDE  = [226, 232, 240];   // #e2e8f0 — divisores ultra finos
+    const C_LABEL  = [100, 116, 139];   // #64748b — etiquetas en gris medio
+    const C_TENUE  = [148, 163, 184];   // #94a3b8 — texto terciario
+
+    // Logo para el PDF: jsPDF necesita los bytes de la imagen, no la etiqueta <img>,
+    // así que se carga y convierte a dataURL una sola vez y se reutiliza.
+    // Es la versión blanca del logo, pensada para el encabezado oscuro.
+    let logoPDFCache = null;
+    async function obtenerLogoPDF() {
+      if (logoPDFCache) return logoPDFCache;
+      const img = new Image();
+      img.src = 'logo-gc-blanco.png';
+      await img.decode();
+      const c = document.createElement('canvas');
+      c.width = img.naturalWidth; c.height = img.naturalHeight;
+      c.getContext('2d').drawImage(img, 0, 0);
+      logoPDFCache = { dataURL: c.toDataURL('image/png'), w: img.naturalWidth, h: img.naturalHeight };
+      return logoPDFCache;
+    }
+
+    async function generarPDFCertificado(cert) {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
       const fecha = cert.fecha?.toDate?.()?.toLocaleDateString('es-AR') || new Date().toLocaleDateString('es-AR');
       const pageW = doc.internal.pageSize.getWidth();
-      const margen = 48;
-      let y = 56;
+      const pageH = doc.internal.pageSize.getHeight();
+      const margen = 52;
+      const anchoUtil = pageW - margen * 2;
+      let y;
 
-      // Encabezado
-      doc.setFillColor(26, 26, 26);
-      doc.rect(0, 0, pageW, 90, 'F');
-      doc.setTextColor(200, 169, 110);
-      doc.setFontSize(20); doc.setFont(undefined, 'bold');
-      doc.text('Certificado de Calidad', margen, 44);
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(11); doc.setFont(undefined, 'normal');
-      doc.text(cert.obra || OBRA_NOMBRE, margen, 66);
-      doc.setFontSize(14); doc.setFont(undefined, 'bold'); doc.setTextColor(200, 169, 110);
-      doc.text(cert.numero, pageW - margen, 44, { align: 'right' });
-      doc.setTextColor(255,255,255); doc.setFontSize(10); doc.setFont(undefined, 'normal');
-      doc.text(fecha, pageW - margen, 66, { align: 'right' });
+      // Helper: el tracking (setCharSpace) es estado global del documento, así que
+      // siempre se escribe el texto y se vuelve a 0 para no contaminar lo que sigue.
+      const conTracking = (px, fn) => { doc.setCharSpace(px); fn(); doc.setCharSpace(0); };
 
-      y = 130;
-      doc.setTextColor(0, 0, 0);
+      // El logo es deseable pero no imprescindible: si no carga, el certificado se
+      // genera igual, sin él.
+      let logo = null;
+      try { logo = await obtenerLogoPDF(); } catch (e) { console.warn('No se pudo cargar el logo para el PDF:', e); }
 
-      // Datos de la unidad
-      const fila = (label, valor) => {
-        doc.setFont(undefined, 'bold'); doc.setFontSize(10); doc.setTextColor(90, 90, 90);
-        doc.text(label.toUpperCase(), margen, y);
-        doc.setFont(undefined, 'normal'); doc.setFontSize(13); doc.setTextColor(0, 0, 0);
-        doc.text(String(valor || '—'), margen, y + 17);
-        y += 42;
+      // ── CABECERA ────────────────────────────────────────────────────────────
+      // Asimétrica: la marca a la izquierda, la tarjeta del certificado a la derecha.
+      const ALTO_HEADER = 118;
+      doc.setFillColor(...C_DARK);
+      doc.rect(0, 0, pageW, ALTO_HEADER, 'F');
+      // Filete dorado al pie de la banda: el acento, muy sutil.
+      doc.setFillColor(...C_ACENTO);
+      doc.rect(0, ALTO_HEADER - 2.5, pageW, 2.5, 'F');
+
+      // El logo ya es el logotipo de la marca (versión blanca, para fondo oscuro).
+      if (logo) {
+        const altoLogo = 40;
+        doc.addImage(logo.dataURL, 'PNG', margen, (ALTO_HEADER - 2.5 - altoLogo) / 2,
+          altoLogo * (logo.w / logo.h), altoLogo);
+      }
+
+      // Tarjeta del certificado: contorno dorado fino y código en monoespaciada.
+      const cardW = 156, cardH = 66;
+      const cardX = pageW - margen - cardW, cardY = (ALTO_HEADER - 2.5 - cardH) / 2;
+      doc.setDrawColor(...C_ACENTO); doc.setLineWidth(0.7);
+      doc.roundedRect(cardX, cardY, cardW, cardH, 3, 3, 'S');
+      doc.setFont(FUENTE, 'bold'); doc.setFontSize(6); doc.setTextColor(...C_ACENTO);
+      conTracking(1.1, () => doc.text('CERTIFICADO N°', cardX + 14, cardY + 18));
+      doc.setFont(MONO, 'bold'); doc.setFontSize(15); doc.setTextColor(255, 255, 255);
+      doc.text(cert.numero || '—', cardX + 14, cardY + 40);
+      doc.setFont(MONO, 'normal'); doc.setFontSize(8.5); doc.setTextColor(...C_TENUE);
+      doc.text(fecha, cardX + 14, cardY + 55);
+
+      // ── TÍTULO ──────────────────────────────────────────────────────────────
+      y = ALTO_HEADER + 58;
+      doc.setFont(FUENTE, 'bold'); doc.setFontSize(30); doc.setTextColor(...C_DARK);
+      conTracking(-0.9, () => doc.text('Certificado de Calidad', margen, y));
+      y += 19;
+      doc.setFont(FUENTE, 'italic'); doc.setFontSize(12); doc.setTextColor(...C_LABEL);
+      doc.text(cert.obra || OBRA_NOMBRE, margen, y);
+      y += 16;
+      doc.setFillColor(...C_ACENTO);
+      doc.rect(margen, y, 44, 2.5, 'F');   // regla corta de acento bajo el título
+      y += 34;
+
+      // ── METADATOS ───────────────────────────────────────────────────────────
+      // Grilla de 3 columnas sobre bloque gris ultra claro, divisores ultra finos.
+      const colW = anchoUtil / 3;
+      const filaH = 54;
+      const gridH = filaH * 2;
+      doc.setFillColor(...C_BLOQUE);
+      doc.rect(margen, y, anchoUtil, gridH, 'F');
+      doc.setDrawColor(...C_BORDE); doc.setLineWidth(0.5);
+      doc.rect(margen, y, anchoUtil, gridH, 'S');
+      doc.line(margen, y + filaH, margen + anchoUtil, y + filaH);          // divisor horizontal
+      doc.line(margen + colW, y, margen + colW, y + gridH);                // col 1 | col 2
+      doc.line(margen + colW * 2, y, margen + colW * 2, y + filaH);        // col 2 | col 3 (solo fila 1)
+
+      // Etiqueta pequeña en gris medio + valor en negrita oscura.
+      const celda = (label, valor, cx, cy, cw) => {
+        doc.setFont(FUENTE, 'bold'); doc.setFontSize(6); doc.setTextColor(...C_LABEL);
+        conTracking(0.9, () => doc.text(label, cx + 16, cy + 21));
+        doc.setFont(FUENTE, 'bold'); doc.setFontSize(12); doc.setTextColor(...C_DARK);
+        const lineas = doc.splitTextToSize(String(valor || '—'), cw - 32);
+        doc.text(lineas[0], cx + 16, cy + 39);
       };
-      const colX = pageW / 2 + 10;
-      const filaDoble = (l1, v1, l2, v2) => {
-        doc.setFont(undefined, 'bold'); doc.setFontSize(10); doc.setTextColor(90, 90, 90);
-        doc.text(l1.toUpperCase(), margen, y); doc.text(l2.toUpperCase(), colX, y);
-        doc.setFont(undefined, 'normal'); doc.setFontSize(13); doc.setTextColor(0, 0, 0);
-        doc.text(String(v1 || '—'), margen, y + 17); doc.text(String(v2 || '—'), colX, y + 17);
-        y += 42;
-      };
+      celda('BLOQUE',         cert.bloqueNombre,                margen,            y,         colW);
+      celda('NIVEL',          cert.nivelNombre,                 margen + colW,     y,         colW);
+      celda('UNIDAD / DEPTO', cert.deptoNombre || cert.depto,   margen + colW * 2, y,         colW);
+      celda('RUBRO',          cert.rubro,                       margen,            y + filaH, colW);
+      celda('RESPONSABLE / SUBCONTRATISTA', cert.responsable,   margen + colW,     y + filaH, colW * 2);
+      y += gridH + 34;
 
-      filaDoble('Edificio', cert.bloqueNombre, 'Nivel', cert.nivelNombre);
-      filaDoble('Unidad / Depto', cert.deptoNombre || cert.depto, 'Rubro', cert.rubro);
-      fila('Responsable / Subcontratista', cert.responsable);
+      // ── DECLARACIÓN ─────────────────────────────────────────────────────────
+      // Caja destacada con borde izquierdo grueso de acento: carácter oficial.
+      const declaracion = `El presente documento certifica que no quedan observaciones pendientes a cargo de ${cert.responsable || '—'}.`;
+      doc.setFont(FUENTE, 'normal'); doc.setFontSize(11.5); doc.setTextColor(...C_DARK);
+      const lineasDecl = doc.splitTextToSize(declaracion, anchoUtil - 52);
+      const declH = lineasDecl.length * 16 + 34;
+      doc.setFillColor(...C_BLOQUE);
+      doc.rect(margen, y, anchoUtil, declH, 'F');
+      doc.setFillColor(...C_ACENTO);
+      doc.rect(margen, y, 3.5, declH, 'F');
+      doc.text(lineasDecl, margen + 26, y + 24);
+      y += declH + 36;
 
-      // Línea divisoria
-      doc.setDrawColor(220, 220, 220); doc.line(margen, y, pageW - margen, y); y += 24;
-
-      // Detalle de observaciones
-      doc.setFont(undefined, 'bold'); doc.setFontSize(12); doc.setTextColor(0, 0, 0);
-      doc.text('Detalle de la inspección', margen, y); y += 8;
+      // ── HISTORIAL DE OBSERVACIONES ──────────────────────────────────────────
+      doc.setFont(FUENTE, 'bold'); doc.setFontSize(7); doc.setTextColor(...C_LABEL);
+      conTracking(1.2, () => doc.text('HISTORIAL DE OBSERVACIONES', margen, y));
+      y += 6;
 
       if (cert.sinObservaciones) {
-        y += 16;
-        doc.setFont(undefined, 'normal'); doc.setFontSize(11); doc.setTextColor(60, 60, 60);
+        y += 18;
+        doc.setFont(FUENTE, 'italic'); doc.setFontSize(TAM_CUERPO); doc.setTextColor(...C_LABEL);
         doc.text('La unidad fue inspeccionada y no presentó observaciones para este rubro.', margen, y);
         y += 24;
       } else {
         doc.autoTable({
-          startY: y + 8,
+          startY: y + 10,
           head: [['N°', 'Descripción', 'Severidad', 'Creación', 'Resolución', 'Fecha res.']],
           body: (cert.obsCubiertas || []).map(o => [
             o.numero, o.descripcion, o.severidad, o.fechaCreacion,
             o.notaResolucion || '—', o.fechaResolucion,
           ]),
           margin: { left: margen, right: margen },
-          styles: { fontSize: 8, cellPadding: 4, valign: 'top' },
-          headStyles: { fillColor: [26, 26, 26], textColor: [200, 169, 110] },
-          columnStyles: { 1: { cellWidth: 150 }, 4: { cellWidth: 110 } },
+          theme: 'grid',
+          styles: { font: FUENTE, fontSize: 8, cellPadding: 6, valign: 'top',
+                    textColor: C_DARK, lineColor: C_BORDE, lineWidth: 0.5 },
+          headStyles: { font: FUENTE, fontStyle: 'bold', fontSize: 6.5, cellPadding: 6,
+                        fillColor: C_DARK, textColor: [255, 255, 255], lineWidth: 0 },
+          alternateRowStyles: { fillColor: C_BLOQUE },
+          columnStyles: { 1: { cellWidth: 148 }, 4: { cellWidth: 108 } },
         });
-        y = doc.lastAutoTable.finalY + 20;
+        y = doc.lastAutoTable.finalY + 22;
       }
 
       // Certificado anterior (re-certificación)
       if (cert.certificadoAnteriorNumero) {
-        doc.setFont(undefined, 'italic'); doc.setFontSize(10); doc.setTextColor(90, 90, 90);
+        doc.setFont(FUENTE, 'italic'); doc.setFontSize(9); doc.setTextColor(...C_LABEL);
         doc.text(`Este certificado complementa al ${cert.certificadoAnteriorNumero} emitido previamente para esta unidad y rubro.`, margen, y);
         y += 26;
       }
 
-      // Pie: otorgado por + firma
-      const pageH = doc.internal.pageSize.getHeight();
-      let yPie = Math.max(y + 30, pageH - 120);
-      doc.setDrawColor(180, 180, 180); doc.line(margen, yPie, margen + 200, yPie);
-      doc.setFont(undefined, 'normal'); doc.setFontSize(10); doc.setTextColor(60, 60, 60);
-      doc.text('Otorgado por', margen, yPie + 16);
-      doc.setFont(undefined, 'bold'); doc.setFontSize(11); doc.setTextColor(0, 0, 0);
-      doc.text(cert.otorgadoPorNombre || '', margen, yPie + 32);
-      doc.setFont(undefined, 'normal'); doc.setFontSize(9); doc.setTextColor(120, 120, 120);
-      doc.text(`Emitido el ${fecha} · ${cert.numero}`, margen, yPie + 50);
+      // ── FIRMAS ──────────────────────────────────────────────────────────────
+      // Espacio generoso sobre las líneas para que la firma real tenga lugar.
+      let yPie = Math.max(y + 86, pageH - 152);
+      if (yPie > pageH - 118) { doc.addPage('a4', 'p'); yPie = pageH - 152; }
+
+      const gapFirmas = 44;
+      const anchoFirma = (anchoUtil - gapFirmas) / 2;
+      const xFirmaDer = margen + anchoFirma + gapFirmas;
+      doc.setDrawColor(...C_DARK); doc.setLineWidth(0.7);
+      doc.line(margen, yPie, margen + anchoFirma, yPie);
+      doc.line(xFirmaDer, yPie, xFirmaDer + anchoFirma, yPie);
+
+      doc.setFont(FUENTE, 'bold'); doc.setFontSize(11); doc.setTextColor(...C_DARK);
+      doc.text(doc.splitTextToSize(cert.otorgadoPorNombre || '—', anchoFirma)[0], margen, yPie + 17);
+      doc.text(doc.splitTextToSize(cert.responsable || '—', anchoFirma)[0], xFirmaDer, yPie + 17);
+      doc.setFont(FUENTE, 'normal'); doc.setFontSize(6.5); doc.setTextColor(...C_LABEL);
+      conTracking(0.9, () => {
+        doc.text('OTORGADO POR', margen, yPie + 30);
+        doc.text('RESPONSABLE / SUBCONTRATISTA', xFirmaDer, yPie + 30);
+      });
+
+      // Pie de página fino
+      doc.setDrawColor(...C_BORDE); doc.setLineWidth(0.5);
+      doc.line(margen, pageH - 52, pageW - margen, pageH - 52);
+      doc.setFont(FUENTE, 'normal'); doc.setFontSize(7.5); doc.setTextColor(...C_TENUE);
+      doc.text(`Emitido el ${fecha}`, margen, pageH - 38);
+      doc.setFont(MONO, 'normal'); doc.setFontSize(7.5);
+      doc.text(cert.numero || '', pageW - margen, pageH - 38, { align: 'right' });
 
       doc.setProperties({ title: `${cert.numero}_${(cert.deptoNombre||cert.depto)}_${cert.rubro}`.replace(/[^\w\-]+/g, '_') });
 
