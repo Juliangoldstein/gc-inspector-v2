@@ -834,6 +834,14 @@
       document.getElementById('user-email').textContent = currentUser.email;
       if (currentUser.photoURL) document.getElementById('user-avatar').src = currentUser.photoURL;
 
+      // Precalentar el token de Dropbox en segundo plano. La primera llamada paga el
+      // cold start de la Cloud Function (~2.5s); pidiéndolo ahora, mientras el
+      // inspector mira la lista, queda cacheado (~4h) para cuando abra el primer plano.
+      // Fire-and-forget: si falla no molesta al usuario, y al abrir el plano se reintenta.
+      // Solo adelanta la llamada al token: no cachea el PDF (los planos se traen siempre
+      // frescos) ni toca la cadena de descarga/render.
+      getDropboxToken().catch(() => {});
+
       // Migraciones de datos legacy — corren una sola vez (ver flag de versión).
       ejecutarMigracionesSiHaceFalta();
 
