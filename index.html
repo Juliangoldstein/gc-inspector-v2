@@ -2270,6 +2270,11 @@
     // ── SISTEMA DE DISEÑO DEL CERTIFICADO ────────────────────────────────────
     // Tipografía única: todo el PDF usa esta fuente y solo varía el estilo
     // (normal/bold/italic). MONO se reserva para el código de certificado.
+    // Son fuentes estándar del formato PDF (Base 14): no se embeben y renderizan
+    // igual en cualquier visor e impresora. Evaluado y descartado embeber Inter:
+    // necesita un archivo por estilo y, sin build que los sirva aparte, ese peso
+    // (~400-600 KB en base64) se sumaría a este HTML y lo pagaría toda la app en
+    // cada carga —incluidos los inspectores en obra— para un PDF ocasional.
     const FUENTE = 'helvetica';
     const MONO   = 'courier';
     const TAM_CUERPO = 11;
