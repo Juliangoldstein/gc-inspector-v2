@@ -132,6 +132,92 @@
       return /^L\d+$/.test(u) ? 'Local ' + u.slice(1) : u;
     }
 
+    // ─── PLAN DE PUNTOS DE INSPECCIÓN (PPI) ──────────────────────────────────
+    // Matriz maestra: 12 rubros encadenados en 3 fases. Aprobar un rubro libera
+    // al siguiente y sin esa aprobación el siguiente no se puede cargar (el PPI
+    // en papel lo dice así: "queda estrictamente prohibido iniciar un rubro sin
+    // la aprobación firmada del rubro precedente").
+    //
+    // El `ambito` no es uniforme, porque los rubros no se controlan todos con la
+    // misma granularidad: la losa, las columnas, las vigas y el contrapiso son
+    // del piso entero, mientras que las mamposterías, las instalaciones y las
+    // terminaciones se controlan unidad por unidad. Los rubros por unidad suman
+    // 'EC' (espacio común) como una unidad más del nivel.
+    //
+    // Este PPI es independiente del módulo de inspección: no lee ni escribe
+    // `observaciones`, y una obs pendiente no condiciona ninguna aprobación.
+    const FASES_PPI = { 1: 'Estructura', 2: 'Instalaciones', 3: 'Terminaciones' };
+
+    const RUBROS_PPI = [
+      { n: 1, slug: 'losa', nombre: 'Losa', fase: 1, ambito: 'nivel', items: [
+        'Verificar si se colocaron los separadores.',
+        'Verificar pasantes de cloaca y plenos.',
+        'Verificar refuerzos en plenos y muros del nivel superior.',
+        'Correcto atado de cañerías eléctricas.',
+      ] },
+      { n: 2, slug: 'columnas', nombre: 'Columnas y Tabiques', fase: 1, ambito: 'nivel', items: [
+        'En caso de llevar una cañería eléctrica, verificar que esté.',
+        'En caso de llevar cañerías sanitarias en tabiques, verificar colocación de encofrados.',
+      ] },
+      { n: 3, slug: 'vigas', nombre: 'Vigas', fase: 1, ambito: 'nivel', items: [
+        'Verificar niveles de encofrado.',
+        'Pasantes a 45° en balcones.',
+        'Pasantes para cloacas.',
+      ] },
+      { n: 4, slug: 'mamposterias', nombre: 'Mamposterías', fase: 1, ambito: 'unidad', items: [
+        'Verificar plomo / verticalidad.',
+        'Verificar armado cada 2-3 hiladas.',
+        'Control de trabas correctas.',
+        'Acuñado a losa o vigas.',
+      ] },
+      { n: 5, slug: 'marcos', nombre: 'Marcos y Premarcos', fase: 2, ambito: 'unidad', items: [
+        'Verificar plomada en ambas caras.',
+        'Escuadras: hacer una "X" de manera diagonal.',
+        'Ancho constante (arriba, al medio y abajo). La presión al amurar puede descuadrarlas; se deben colocar espaciadores.',
+        'Pintado con 2 manos de antióxido (la parte interna requiere mayor protección contra la corrosión).',
+      ] },
+      { n: 6, slug: 'electricidad', nombre: 'Electricidad', fase: 2, ambito: 'unidad', items: [
+        'Chequear que las curvas sean suaves, prohibir que sean a 90°.',
+        'Plomo de cajas (llaves y tomacorrientes).',
+        'Asegurarse de que todas las cajas estén tapadas (con madera, bolsa o telgopor).',
+        'Amurado de toda la instalación con alambre a la mampostería o con material.',
+      ] },
+      { n: 7, slug: 'plomeria', nombre: 'Plomería', fase: 2, ambito: 'unidad', items: [
+        'Prueba hidráulica obligatoria: antes de tapar la instalación se debe hacer una prueba de presión con bomba manual entre 10 y 12 bar por 1 hora (no debe bajar nada en el manómetro).',
+        'Controlar aislamiento térmico con fundas de espuma de polietileno en todo el recorrido de agua caliente.',
+        'Todas las instalaciones deberán amurarse o colocarse grampas para fijarse al piso.',
+      ] },
+      { n: 8, slug: 'contrapiso', nombre: 'Contrapiso', fase: 2, ambito: 'nivel', items: [
+        'Protección de cañerías y fijación.',
+        'Juntas de dilatación cada 4-5m y en todo el perímetro.',
+      ] },
+      { n: 9, slug: 'yeso', nombre: 'Yeso', fase: 3, ambito: 'unidad', items: [
+        'Verificar que los muros no cuenten con humedad ni salientes.',
+        'La mampostería deberá ser previamente chicoteada.',
+        'Control con luz rasante apuntando desde un lado a otro para demostrar cualquier ondulación.',
+        'Controlar con golpe de nudillos para saber si se siente hueco o soplado.',
+        'Es obligatorio usar cantoneras en las esquinas.',
+      ] },
+      { n: 10, slug: 'durlock', nombre: 'Durlock', fase: 3, ambito: 'unidad', items: [
+        'Verificar que las placas nunca estén sin trabar (no debe formarse una cruz, sino una "TE").',
+        'Usar siempre cinta de papel para las juntas, asentada con masilla.',
+        'Los tornillos deben quedar rehundidos por lo menos 1mm.',
+        'Tomado de juntas en 3 pasadas respetando el secado (la última bien ancha para perder la junta).',
+      ] },
+      { n: 11, slug: 'ceramicos', nombre: 'Cerámicos', fase: 3, ambito: 'unidad', items: [
+        'Grandes piezas: colocar doble encolado para evitar burbujas de aire y asegurar adherencia.',
+        'Pasar una regla en todas las direcciones (la luz vista no puede superar los 2mm).',
+        'Juntas limpias de pegamento antes de colocar la pastina.',
+        'Controlar revestimientos usando nivel láser para ver si se cae o sube en el camino.',
+      ] },
+      { n: 12, slug: 'carpinteria', nombre: 'Carpintería de Aluminio', fase: 3, ambito: 'unidad', items: [
+        'Verificación de plomos.',
+        'Abertura sujeta mediante tornillos de acero inoxidable o tarugos a distancias correctas (un tornillo cada 50 cm o 60 cm).',
+        'Si se fija directo al muro (sin premarco), dejar una luz perimetral uniforme de 3 mm a 5 mm para sellador y absorber dilataciones térmicas.',
+        'Verificar topes de goma en extremos de guías de ventanas corredizas para evitar golpes fuertes contra el marco.',
+      ] },
+    ];
+
     // ─── CROQUIS DE CALIDAD ───────────────────────────────────────────────────
     // Cada croquis es un SVG con una forma por unidad (data-unidad="X") y las
     // etiquetas como trazados (tipografía Ailerons vectorizada). La app pinta
@@ -596,7 +682,7 @@
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.4.149/pdf.worker.min.mjs';
 
     // ─── PANTALLAS ────────────────────────────────────────────────────────────
-    const pantallas = { login: document.getElementById('pantalla-login'), espera: document.getElementById('pantalla-espera'), home: document.getElementById('pantalla-home'), planos: document.getElementById('pantalla-planos'), inspector: document.getElementById('pantalla-inspector'), calidad: document.getElementById('pantalla-calidad') };
+    const pantallas = { login: document.getElementById('pantalla-login'), espera: document.getElementById('pantalla-espera'), home: document.getElementById('pantalla-home'), planos: document.getElementById('pantalla-planos'), inspector: document.getElementById('pantalla-inspector'), calidad: document.getElementById('pantalla-calidad'), ppi: document.getElementById('pantalla-ppi') };
     function mostrar(n) {
       Object.values(pantallas).forEach(p => p.classList.add('oculto'));
       pantallas[n].classList.remove('oculto');
@@ -636,6 +722,10 @@
       mostrar('calidad');
       iniciarPantallaCalidad();
     });
+    document.getElementById('btn-home-ppi').addEventListener('click', () => {
+      mostrar('ppi');
+      iniciarPantallaPPI();
+    });
 
     document.getElementById('btn-login').addEventListener('click', async () => {
       try { await signInWithPopup(auth, provider); } catch (e) { console.error(e); alert('Error al iniciar sesión.'); }
@@ -646,6 +736,7 @@
       pestañas.clear();
       pestañaActiva = null;
       if (planosUnsubscribe) planosUnsubscribe();
+      if (ppiUnsubscribe) { ppiUnsubscribe(); ppiUnsubscribe = null; }
       await signOut(auth);
     }));
 
@@ -1356,12 +1447,12 @@
     },{passive:false});
     pdfArea.addEventListener('touchend', ()=>{ pinchDist=null; });
 
-    // Botón home — volver a la lista de planos (sin cerrar pestañas)
+    // Volver a la lista de planos (sin cerrar pestañas)
     document.getElementById('btn-volver').addEventListener('click', () => {
       mostrar('planos');
     });
 
-    // Botón volver al inspector desde la lista de planos
+    // Volver al plano abierto desde la lista de planos
     document.getElementById('btn-volver-inspector').addEventListener('click', () => {
       if (pestañaActiva && pestañas.has(pestañaActiva)) {
         mostrar('inspector');
@@ -2537,6 +2628,358 @@
           { porRubro: empresasCalidad, actualizadoEn: serverTimestamp() }, { merge: true });
       } catch (e) { console.error(e); alert('No se pudieron guardar las empresas.'); }
     }
+
+    // ─── PPI: PLAN DE PUNTOS DE INSPECCIÓN ───────────────────────────────────
+    // Módulo independiente del inspector y de calidad: no lee `observaciones`
+    // ni `certificados`. Un documento por (ámbito, rubro) en la colección `ppi`,
+    // con ID determinístico —  T-02-losa (nivel) / T-02-A-yeso (unidad) — así
+    // cada aprobación firmada es un registro propio y dos inspectores cargando
+    // rubros distintos de la misma unidad no se pisan.
+    let ppiUnsubscribe = null;
+    let ppiDatos  = {};             // docId → datos del rubro
+    let ppiBloque = '';
+    let ppiNivel  = '';
+    const ppiAbiertos = new Set();  // qué tarjetas/filas quedaron desplegadas
+
+    const ppiPuedeEditar  = () => currentUserData?.rol === 'inspector' || currentUserData?.rol === 'admin';
+    const ppiRubroPorSlug = (slug) => RUBROS_PPI.find(r => r.slug === slug);
+
+    // Las unidades del nivel + EC (espacio común), que a efectos del PPI es una
+    // unidad más: todo rubro por unidad se controla también en el EC.
+    function ppiUnidadesDeNivel(bloque, nivel) {
+      const u = UNIDADES[bloque]?.[nivel];
+      return u ? [...u, 'EC'] : [];
+    }
+
+    function ppiDocId(bloque, nivel, unidad, slug) {
+      return unidad ? `${bloque}-${nivel}-${unidad}-${slug}` : `${bloque}-${nivel}-${slug}`;
+    }
+
+    function ppiEstado(bloque, nivel, unidad, rubro) {
+      return ppiDatos[ppiDocId(bloque, nivel, unidad, rubro.slug)]?.estado || 'pendiente';
+    }
+
+    // "Liberado" = deja pasar al rubro siguiente. Un rubro en "no aplica" libera
+    // igual: si no, un rubro que no existe en ese ámbito (carpintería de aluminio
+    // en Bauleras, por ejemplo) trabaría la cadena para siempre.
+    function ppiLiberado(bloque, nivel, unidad, rubro) {
+      const e = ppiEstado(bloque, nivel, unidad, rubro);
+      return e === 'aprobado' || e === 'no_aplica';
+    }
+
+    // Devuelve null si el rubro se puede cargar, o el texto del motivo si está
+    // bloqueado. Como la cadena alterna ámbitos, hay tres saltos posibles:
+    //  · nivel → nivel   (1→2, 2→3): alcanza con el rubro anterior del nivel.
+    //  · nivel → unidad  (3→4, 8→9): el rubro del nivel libera todas sus unidades.
+    //  · unidad → nivel  (7→8): el contrapiso es del piso entero, así que exige
+    //    la plomería aprobada en TODAS las unidades del nivel, EC incluido — no
+    //    se llena el contrapiso con una unidad sin las cañerías tapadas.
+    function ppiBloqueo(bloque, nivel, unidad, rubro) {
+      const idx = RUBROS_PPI.findIndex(r => r.slug === rubro.slug);
+      if (idx <= 0) return null;
+      const prev = RUBROS_PPI[idx - 1];
+      const etiquetaPrev = `${prev.n}. ${prev.nombre}`;
+      if (prev.ambito === 'nivel') {
+        return ppiLiberado(bloque, nivel, null, prev) ? null
+          : `Requiere aprobar ${etiquetaPrev} en este nivel.`;
+      }
+      if (rubro.ambito === 'unidad') {
+        return ppiLiberado(bloque, nivel, unidad, prev) ? null
+          : `Requiere aprobar ${etiquetaPrev} en ${etiquetaUnidad(unidad)}.`;
+      }
+      const faltan = ppiUnidadesDeNivel(bloque, nivel).filter(u => !ppiLiberado(bloque, nivel, u, prev));
+      return faltan.length === 0 ? null
+        : `Requiere aprobar ${etiquetaPrev} en todas las unidades del nivel. Faltan: ${faltan.map(etiquetaUnidad).join(', ')}.`;
+    }
+
+    function ppiItemsMarcados(rubro, datos) {
+      const items = datos?.items || {};
+      return rubro.items.reduce((acc, _, i) => acc + (items[i] === true ? 1 : 0), 0);
+    }
+
+    // ── Escrituras ──
+    // Los metadatos (bloque/nivel/unidad/rubro) se reescriben en cada save: el
+    // doc puede no existir todavía y el ID solo no alcanza para consultarlo.
+    function ppiMeta(rubro, unidad) {
+      return {
+        bloque: ppiBloque, nivel: ppiNivel, unidad: unidad || null,
+        rubro: rubro.slug, rubroN: rubro.n, fase: rubro.fase, ambito: rubro.ambito,
+        actualizadoPor: currentUser.uid, actualizadoEn: serverTimestamp(),
+      };
+    }
+
+    async function ppiGuardarItem(rubro, unidad, idx, valor) {
+      try {
+        await setDoc(doc(db, 'ppi', ppiDocId(ppiBloque, ppiNivel, unidad, rubro.slug)),
+          { ...ppiMeta(rubro, unidad), items: { [idx]: valor } }, { merge: true });
+      } catch (e) {
+        console.error(e); alert('No se pudo guardar el ítem.');
+        registrarError('ppi_guardar_item', e, { rubro: rubro.slug, unidad });
+      }
+    }
+
+    async function ppiAprobar(rubro, unidad) {
+      const datos = ppiDatos[ppiDocId(ppiBloque, ppiNivel, unidad, rubro.slug)] || {};
+      const bloqueo = ppiBloqueo(ppiBloque, ppiNivel, unidad, rubro);
+      if (bloqueo) { alert(bloqueo); return; }
+      if (ppiItemsMarcados(rubro, datos) < rubro.items.length) {
+        alert('Faltan ítems por tildar. El rubro se aprueba solo con el checklist completo.');
+        return;
+      }
+      try {
+        await setDoc(doc(db, 'ppi', ppiDocId(ppiBloque, ppiNivel, unidad, rubro.slug)), {
+          ...ppiMeta(rubro, unidad),
+          estado: 'aprobado',
+          aprobadoPor: currentUser.uid,
+          aprobadoPorNombre: currentUserData.nombre || currentUser.email,
+          aprobadoEn: serverTimestamp(),
+        }, { merge: true });
+        mostrarToast(`✓ ${rubro.n}. ${rubro.nombre} aprobado${unidad ? ' — ' + etiquetaUnidad(unidad) : ''}`);
+      } catch (e) {
+        console.error(e); alert('No se pudo aprobar el rubro.');
+        registrarError('ppi_aprobar', e, { rubro: rubro.slug, unidad });
+      }
+    }
+
+    async function ppiNoAplica(rubro, unidad) {
+      const donde = unidad ? etiquetaUnidad(unidad) : NIVELES[ppiNivel] || ppiNivel;
+      if (!confirm(`¿Marcar ${rubro.n}. ${rubro.nombre} como "no aplica" en ${donde}?\n\nEl rubro no se va a controlar acá y libera al siguiente igual.`)) return;
+      try {
+        await setDoc(doc(db, 'ppi', ppiDocId(ppiBloque, ppiNivel, unidad, rubro.slug)), {
+          ...ppiMeta(rubro, unidad),
+          estado: 'no_aplica',
+          aprobadoPor: currentUser.uid,
+          aprobadoPorNombre: currentUserData.nombre || currentUser.email,
+          aprobadoEn: serverTimestamp(),
+        }, { merge: true });
+        mostrarToast(`${rubro.n}. ${rubro.nombre} — no aplica`);
+      } catch (e) {
+        console.error(e); alert('No se pudo marcar el rubro.');
+        registrarError('ppi_no_aplica', e, { rubro: rubro.slug, unidad });
+      }
+    }
+
+    // Solo admin. Con bloqueo duro, una aprobación por error deja el rubro
+    // siguiente abierto y no hay forma de volver atrás sin esto.
+    async function ppiReabrir(rubro, unidad) {
+      if (currentUserData?.rol !== 'admin') return;
+      const donde = unidad ? etiquetaUnidad(unidad) : NIVELES[ppiNivel] || ppiNivel;
+      let aviso = `¿Reabrir ${rubro.n}. ${rubro.nombre} en ${donde}? Se borra la aprobación y vuelve a Pendiente.`;
+      // Si el rubro siguiente ya está liberado, reabrir este deja la cadena
+      // inconsistente (un rubro aprobado colgando de uno pendiente). Se permite
+      // igual — en obra puede ser justo lo que hace falta — pero avisando.
+      const sig = RUBROS_PPI[RUBROS_PPI.findIndex(r => r.slug === rubro.slug) + 1];
+      if (sig) {
+        const ambitosSig = sig.ambito === 'unidad' ? ppiUnidadesDeNivel(ppiBloque, ppiNivel) : [null];
+        if (ambitosSig.some(u => ppiLiberado(ppiBloque, ppiNivel, u, sig))) {
+          aviso += `\n\nOjo: ${sig.n}. ${sig.nombre} ya está aprobado y va a quedar colgando de un rubro pendiente.`;
+        }
+      }
+      if (!confirm(aviso)) return;
+      try {
+        await setDoc(doc(db, 'ppi', ppiDocId(ppiBloque, ppiNivel, unidad, rubro.slug)), {
+          ...ppiMeta(rubro, unidad),
+          estado: 'pendiente',
+          aprobadoPor: null, aprobadoPorNombre: null, aprobadoEn: null,
+          reabiertoPor: currentUserData.nombre || currentUser.email,
+          reabiertoEn: serverTimestamp(),
+        }, { merge: true });
+        mostrarToast(`${rubro.n}. ${rubro.nombre} reabierto`);
+      } catch (e) {
+        console.error(e); alert('No se pudo reabrir el rubro.');
+        registrarError('ppi_reabrir', e, { rubro: rubro.slug, unidad });
+      }
+    }
+
+    // ── Render ──
+    function ppiIcono(estado, bloqueo) {
+      if (bloqueo) return '<span class="ppi-icono">🔒</span>';
+      if (estado === 'aprobado')  return '<span class="ppi-icono ok">✓</span>';
+      if (estado === 'no_aplica') return '<span class="ppi-icono na">—</span>';
+      return '<span class="ppi-icono">○</span>';
+    }
+
+    function ppiBadge(estado, bloqueo) {
+      if (bloqueo) return '<span class="ppi-badge ppi-badge-block">Bloqueado</span>';
+      if (estado === 'aprobado')  return '<span class="ppi-badge ppi-badge-ok">Aprobado</span>';
+      if (estado === 'no_aplica') return '<span class="ppi-badge ppi-badge-na">No aplica</span>';
+      return '<span class="ppi-badge ppi-badge-pend">Pendiente</span>';
+    }
+
+    function ppiCuerpo(rubro, unidad, datos, estado, bloqueo) {
+      const items = datos.items || {};
+      const editable = ppiPuedeEditar() && !bloqueo && estado === 'pendiente';
+      const u = unidad || '';
+      let html = '';
+      if (bloqueo) html += `<div class="ppi-aviso-bloqueo">🔒 ${escapeHtml(bloqueo)}</div>`;
+      html += '<ul class="ppi-items">';
+      rubro.items.forEach((txt, i) => {
+        html += `<li><label class="ppi-item${items[i] === true ? ' marcado' : ''}">` +
+          `<input type="checkbox" class="ppi-item-check" data-rubro="${escapeHtml(rubro.slug)}" data-unidad="${escapeHtml(u)}" data-idx="${i}"${items[i] === true ? ' checked' : ''}${editable ? '' : ' disabled'}>` +
+          `<span>${escapeHtml(txt)}</span></label></li>`;
+      });
+      html += '</ul>';
+      if (estado === 'aprobado') {
+        const fecha = datos.aprobadoEn?.toDate ? ' · ' + datos.aprobadoEn.toDate().toLocaleDateString('es-AR') : '';
+        html += `<div class="ppi-firma">✓ Aprobado por ${escapeHtml(datos.aprobadoPorNombre || '—')}${fecha}</div>`;
+      } else if (estado === 'no_aplica') {
+        html += `<div class="ppi-firma">Marcado como "no aplica" por ${escapeHtml(datos.aprobadoPorNombre || '—')}</div>`;
+      }
+      const acciones = [];
+      if (ppiPuedeEditar() && estado === 'pendiente' && !bloqueo) {
+        const completo = ppiItemsMarcados(rubro, datos) === rubro.items.length;
+        acciones.push(`<button class="ppi-btn-aprobar btn-primary" data-rubro="${escapeHtml(rubro.slug)}" data-unidad="${escapeHtml(u)}"${completo ? '' : ' disabled'}>Aprobar y liberar</button>`);
+        acciones.push(`<button class="ppi-btn-noaplica btn-secondary" data-rubro="${escapeHtml(rubro.slug)}" data-unidad="${escapeHtml(u)}">No aplica</button>`);
+      }
+      if (currentUserData?.rol === 'admin' && (estado === 'aprobado' || estado === 'no_aplica')) {
+        acciones.push(`<button class="ppi-btn-reabrir btn-secondary" data-rubro="${escapeHtml(rubro.slug)}" data-unidad="${escapeHtml(u)}">Reabrir</button>`);
+      }
+      if (acciones.length) html += `<div class="ppi-acciones">${acciones.join('')}</div>`;
+      return html;
+    }
+
+    function ppiCardNivel(rubro) {
+      const abierto = ppiAbiertos.has(`r|${rubro.slug}`);
+      const datos   = ppiDatos[ppiDocId(ppiBloque, ppiNivel, null, rubro.slug)] || {};
+      const estado  = datos.estado || 'pendiente';
+      const bloqueo = ppiBloqueo(ppiBloque, ppiNivel, null, rubro);
+      return `<div class="ppi-card${bloqueo ? ' ppi-bloqueada' : ''}">
+          <button class="ppi-card-head ppi-toggle" data-key="r|${escapeHtml(rubro.slug)}">
+            ${ppiIcono(estado, bloqueo)}
+            <span class="ppi-card-titulo">${rubro.n}. ${escapeHtml(rubro.nombre)}</span>
+            <span class="ppi-ambito">Nivel</span>
+            <span class="ppi-progreso">${ppiItemsMarcados(rubro, datos)}/${rubro.items.length}</span>
+            ${ppiBadge(estado, bloqueo)}
+            <span class="ppi-chevron${abierto ? ' abierto' : ''}">▾</span>
+          </button>
+          <div class="ppi-card-body${abierto ? '' : ' oculto'}">${ppiCuerpo(rubro, null, datos, estado, bloqueo)}</div>
+        </div>`;
+    }
+
+    function ppiCardUnidad(rubro, unidades) {
+      const abierto   = ppiAbiertos.has(`r|${rubro.slug}`);
+      const liberadas = unidades.filter(u => ppiLiberado(ppiBloque, ppiNivel, u, rubro)).length;
+      const todasBloq = unidades.every(u => ppiBloqueo(ppiBloque, ppiNivel, u, rubro));
+      let filas = '';
+      unidades.forEach(u => {
+        const key         = `f|${rubro.slug}|${u}`;
+        const abiertaFila = ppiAbiertos.has(key);
+        const datos       = ppiDatos[ppiDocId(ppiBloque, ppiNivel, u, rubro.slug)] || {};
+        const estado      = datos.estado || 'pendiente';
+        const bloqueo     = ppiBloqueo(ppiBloque, ppiNivel, u, rubro);
+        filas += `<div class="ppi-fila${bloqueo ? ' ppi-bloqueada' : ''}">
+            <button class="ppi-fila-head ppi-toggle" data-key="${escapeHtml(key)}">
+              ${ppiIcono(estado, bloqueo)}
+              <span class="ppi-fila-titulo">${escapeHtml(etiquetaUnidad(u))}</span>
+              <span class="ppi-progreso">${ppiItemsMarcados(rubro, datos)}/${rubro.items.length}</span>
+              ${ppiBadge(estado, bloqueo)}
+              <span class="ppi-chevron${abiertaFila ? ' abierto' : ''}">▾</span>
+            </button>
+            <div class="ppi-fila-body${abiertaFila ? '' : ' oculto'}">${ppiCuerpo(rubro, u, datos, estado, bloqueo)}</div>
+          </div>`;
+      });
+      const icono = todasBloq ? '<span class="ppi-icono">🔒</span>'
+        : `<span class="ppi-icono${liberadas === unidades.length ? ' ok' : ''}">${liberadas === unidades.length ? '✓' : '○'}</span>`;
+      return `<div class="ppi-card${todasBloq ? ' ppi-bloqueada' : ''}">
+          <button class="ppi-card-head ppi-toggle" data-key="r|${escapeHtml(rubro.slug)}">
+            ${icono}
+            <span class="ppi-card-titulo">${rubro.n}. ${escapeHtml(rubro.nombre)}</span>
+            <span class="ppi-ambito">Unidad</span>
+            <span class="ppi-badge ${liberadas === unidades.length ? 'ppi-badge-ok' : 'ppi-badge-pend'}">${liberadas}/${unidades.length} unidades</span>
+            <span class="ppi-chevron${abierto ? ' abierto' : ''}">▾</span>
+          </button>
+          <div class="ppi-card-body${abierto ? '' : ' oculto'}">${filas}</div>
+        </div>`;
+    }
+
+    function ppiRender() {
+      const cont = document.getElementById('ppi-cadena');
+      if (!ppiBloque || !ppiNivel) {
+        cont.innerHTML = '<div class="cal-placeholder">Elegí bloque y nivel para ver el plan de puntos de inspección.</div>';
+        return;
+      }
+      const unidades = ppiUnidadesDeNivel(ppiBloque, ppiNivel);
+      if (!unidades.length) {
+        cont.innerHTML = '<div class="cal-placeholder">Este nivel no tiene unidades cargadas.</div>';
+        return;
+      }
+      let html = '', fase = null;
+      RUBROS_PPI.forEach(rubro => {
+        if (rubro.fase !== fase) {
+          fase = rubro.fase;
+          html += `<div class="ppi-fase"><span class="ppi-fase-n">Fase ${fase}</span>${escapeHtml(FASES_PPI[fase])}</div>`;
+        }
+        html += rubro.ambito === 'nivel' ? ppiCardNivel(rubro) : ppiCardUnidad(rubro, unidades);
+      });
+      cont.innerHTML = html;
+    }
+
+    // ── Eventos ──
+    // Delegados: ppiRender() reescribe todo el innerHTML en cada snapshot, así
+    // que enganchar listeners por elemento no sobreviviría al re-render.
+    document.getElementById('ppi-cadena').addEventListener('click', async (e) => {
+      const toggle = e.target.closest('.ppi-toggle');
+      if (toggle) {
+        const k = toggle.dataset.key;
+        if (ppiAbiertos.has(k)) ppiAbiertos.delete(k); else ppiAbiertos.add(k);
+        ppiRender();
+        return;
+      }
+      const btn = e.target.closest('.ppi-btn-aprobar, .ppi-btn-noaplica, .ppi-btn-reabrir');
+      if (!btn) return;
+      const rubro  = ppiRubroPorSlug(btn.dataset.rubro);
+      const unidad = btn.dataset.unidad || null;
+      if (!rubro) return;
+      if (btn.classList.contains('ppi-btn-aprobar'))  await ppiAprobar(rubro, unidad);
+      else if (btn.classList.contains('ppi-btn-noaplica')) await ppiNoAplica(rubro, unidad);
+      else await ppiReabrir(rubro, unidad);
+    });
+
+    document.getElementById('ppi-cadena').addEventListener('change', async (e) => {
+      const chk = e.target.closest('.ppi-item-check');
+      if (!chk) return;
+      const rubro = ppiRubroPorSlug(chk.dataset.rubro);
+      if (!rubro) return;
+      await ppiGuardarItem(rubro, chk.dataset.unidad || null, Number(chk.dataset.idx), chk.checked);
+    });
+
+    document.getElementById('ppi-bloque').addEventListener('change', (e) => {
+      ppiBloque = e.target.value;
+      ppiNivel  = '';
+      const sel = document.getElementById('ppi-nivel');
+      sel.innerHTML = '<option value="">— Nivel —</option>';
+      Object.keys(UNIDADES[ppiBloque] || {}).sort().forEach(n => {
+        const opt = document.createElement('option');
+        opt.value = n;
+        opt.textContent = NIVELES[n] || n;
+        sel.appendChild(opt);
+      });
+      ppiAbiertos.clear();
+      ppiRender();
+    });
+
+    document.getElementById('ppi-nivel').addEventListener('change', (e) => {
+      ppiNivel = e.target.value;
+      ppiAbiertos.clear();
+      ppiRender();
+    });
+
+    function iniciarPantallaPPI() {
+      document.getElementById('ppi-user-nombre').textContent = currentUserData?.nombre || currentUser?.email || '';
+      // Una sola suscripción a toda la colección: son ~400 docs chicos y el
+      // bloqueo 7→8 necesita mirar todas las unidades del nivel igual.
+      if (!ppiUnsubscribe) {
+        ppiUnsubscribe = onSnapshot(collection(db, 'ppi'), snap => {
+          ppiDatos = {};
+          snap.forEach(d => { ppiDatos[d.id] = d.data(); });
+          ppiRender();
+        }, e => {
+          console.error(e);
+          registrarError('ppi_snapshot', e);
+        });
+      }
+      ppiRender();
+    }
   </script>
 
   <style>
@@ -2748,13 +3191,60 @@
     .home-titulo{text-align:center;}
     .home-titulo h1{font-size:26px;font-weight:700;letter-spacing:-0.3px;}
     .home-titulo p{color:var(--text2);font-size:14px;margin-top:6px;}
-    .home-botones{display:flex;gap:20px;flex-wrap:wrap;justify-content:center;max-width:720px;}
+    /* 3 tarjetas de 320px + 2 gaps de 20px = 1000px. Se mantiene el wrap: la app
+       se usa en obra desde el celular, donde tienen que apilarse igual. */
+    .home-botones{display:flex;gap:20px;flex-wrap:wrap;justify-content:center;max-width:1040px;}
     .home-card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:32px 28px;width:320px;max-width:100%;display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center;transition:border-color var(--trans),transform var(--trans),background var(--trans);}
     .home-card:hover{border-color:var(--accent);transform:translateY(-3px);background:var(--bg3);}
     .home-card-icono{width:72px;height:72px;border-radius:18px;background:rgba(200,169,110,0.12);display:flex;align-items:center;justify-content:center;color:var(--accent);}
     .home-card-icono svg{width:36px;height:36px;}
     .home-card-titulo{font-size:18px;font-weight:700;color:var(--text);}
     .home-card-desc{font-size:13px;color:var(--text2);line-height:1.5;}
+
+    /* ═══ PPI ═══ */
+    #pantalla-ppi{height:100vh;display:flex;flex-direction:column;}
+    .ppi-body{flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:16px;}
+    #ppi-cadena{display:flex;flex-direction:column;gap:8px;max-width:900px;width:100%;}
+    .ppi-fase{font-size:11px;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;color:var(--text2);display:flex;align-items:center;gap:8px;margin-top:14px;}
+    .ppi-fase:first-child{margin-top:0;}
+    .ppi-fase-n{background:var(--accent);color:#1a1a1a;border-radius:4px;padding:2px 6px;font-size:10px;letter-spacing:0.4px;}
+    .ppi-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;overflow:hidden;}
+    .ppi-card.ppi-bloqueada{opacity:0.55;}
+    .ppi-card-head,.ppi-fila-head{width:100%;display:flex;align-items:center;gap:10px;padding:12px 14px;background:none;border:none;text-align:left;color:var(--text);}
+    .ppi-card-head:hover,.ppi-fila-head:hover{background:var(--bg3);}
+    .ppi-card-titulo{font-size:14px;font-weight:600;flex:1;}
+    .ppi-fila-titulo{font-size:13px;font-weight:600;flex:1;}
+    .ppi-icono{width:20px;height:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;border-radius:50%;border:1px solid var(--border);color:var(--text2);}
+    .ppi-icono.ok{background:rgba(46,204,113,0.15);border-color:var(--success);color:var(--success);}
+    .ppi-icono.na{color:var(--text2);}
+    .ppi-ambito{font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:var(--text2);border:1px solid var(--border);border-radius:4px;padding:1px 5px;}
+    .ppi-progreso{font-size:11px;color:var(--text2);font-variant-numeric:tabular-nums;}
+    .ppi-badge{font-size:10px;font-weight:600;border-radius:10px;padding:3px 8px;white-space:nowrap;}
+    .ppi-badge-ok{background:rgba(46,204,113,0.15);color:var(--success);}
+    .ppi-badge-pend{background:rgba(232,163,61,0.15);color:#e8a33d;}
+    .ppi-badge-na{background:var(--bg3);color:var(--text2);}
+    .ppi-badge-block{background:rgba(224,82,82,0.12);color:#e05252;}
+    .ppi-chevron{font-size:10px;color:var(--text2);transition:transform var(--trans);}
+    .ppi-chevron.abierto{transform:rotate(180deg);}
+    .ppi-card-body{border-top:1px solid var(--border);}
+    .ppi-card-body > .ppi-items,.ppi-card-body > .ppi-firma,.ppi-card-body > .ppi-acciones,.ppi-card-body > .ppi-aviso-bloqueo{margin:12px 14px;}
+    .ppi-fila{border-top:1px solid var(--border);}
+    .ppi-fila:first-child{border-top:none;}
+    .ppi-fila-head{padding-left:24px;}
+    .ppi-fila-body{background:var(--bg);padding:2px 14px 12px 24px;}
+    .ppi-aviso-bloqueo{background:rgba(224,82,82,0.08);border:1px solid rgba(224,82,82,0.25);color:#e08c8c;border-radius:6px;padding:8px 10px;font-size:12px;line-height:1.45;}
+    .ppi-items{list-style:none;display:flex;flex-direction:column;gap:2px;}
+    .ppi-item{display:flex;align-items:flex-start;gap:9px;padding:6px 8px;border-radius:6px;font-size:13px;line-height:1.45;color:var(--text2);cursor:pointer;}
+    .ppi-item:hover{background:var(--bg3);}
+    .ppi-item.marcado{color:var(--text);}
+    .ppi-item input{margin-top:2px;flex-shrink:0;accent-color:var(--accent);width:15px;height:15px;}
+    .ppi-item input:disabled{cursor:default;}
+    .ppi-item:has(input:disabled){cursor:default;}
+    .ppi-item:has(input:disabled):hover{background:none;}
+    .ppi-firma{font-size:11px;color:var(--text2);border-left:2px solid var(--success);padding-left:8px;}
+    .ppi-acciones{display:flex;gap:8px;flex-wrap:wrap;}
+    .ppi-acciones button{font-size:12px;padding:7px 14px;border-radius:6px;}
+    .ppi-acciones button:disabled{opacity:0.4;cursor:not-allowed;}
 
     /* ═══ CALIDAD ═══ */
     #pantalla-calidad{height:100vh;display:flex;flex-direction:column;}
@@ -2870,12 +3360,21 @@
         <h1>¿Qué querés hacer?</h1>
         <p>Elegí una herramienta para empezar</p>
       </div>
+      <!-- Orden deliberado: sigue el flujo de obra — primero el PPI libera el
+           rubro, después se observan los desvíos, y al final se certifica. -->
       <div class="home-botones">
+        <button id="btn-home-ppi" class="home-card">
+          <div class="home-card-icono">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="m9 13 2 2 4-4"/></svg>
+          </div>
+          <div class="home-card-titulo">Plan de Puntos de Inspección</div>
+          <div class="home-card-desc">Los 12 rubros del PPI: cada uno se aprueba y libera al siguiente.</div>
+        </button>
         <button id="btn-home-inspeccionar" class="home-card">
           <div class="home-card-icono">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
           </div>
-          <div class="home-card-titulo">Inspeccionar</div>
+          <div class="home-card-titulo">Gestión de observaciones</div>
           <div class="home-card-desc">Marcá nuevas observaciones en planos y revisá el historial de cada unidad.</div>
         </button>
         <button id="btn-home-calidad" class="home-card">
@@ -2896,10 +3395,12 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
         </button>
         <div class="header-icono"><img src="logo.png" alt="GC Inspector"></div>
-        <div><div class="header-titulo">Inspector de obra</div><div class="header-subtitulo">Catamarán 12</div></div>
+        <div><div class="header-titulo">Gestión de observaciones</div><div class="header-subtitulo">Catamarán 12</div></div>
       </div>
       <div class="header-acciones">
-        <button id="btn-volver-inspector" class="btn-secondary oculto">← Inspector</button>
+        <!-- Sin flecha "←" a propósito: en el visor la flecha ya significa
+             "volver al listado", y acá el sentido es el opuesto. -->
+        <button id="btn-volver-inspector" class="btn-secondary oculto" title="Volver al plano que dejaste abierto">📐 Planos abiertos</button>
         <button id="btn-usuarios" class="btn-secondary" style="display:none">👥 Usuarios</button>
         <div class="user-info">
           <img id="user-avatar" class="user-avatar" src="" alt="">
@@ -2969,8 +3470,10 @@
 
   <div id="pantalla-inspector" class="oculto">
     <header class="inspector-header">
-      <button id="btn-volver" class="btn-volver" title="Ir al inicio">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      <!-- Flecha, no casa: desde el visor este botón vuelve al listado de
+           planos, no al inicio. Al inicio se llega con la casa del listado. -->
+      <button id="btn-volver" class="btn-volver" title="Volver a los planos">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
       </button>
       <div class="inspector-titulo"><h1 id="inspector-titulo">Plano</h1><span id="inspector-obra"></span></div>
       <button class="btn-logout btn-secondary" style="font-size:12px;padding:6px 10px">Cerrar sesión</button>
@@ -3110,6 +3613,35 @@
       </div>
       <div class="panel-footer">
         <button id="cal-btn-certificar" class="oculto">Generar certificado de calidad</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="pantalla-ppi" class="oculto">
+    <header class="header">
+      <div class="header-marca">
+        <button class="btn-ir-home btn-volver" title="Inicio">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        </button>
+        <div class="header-icono"><img src="logo.png" alt="GC"></div>
+        <div><div class="header-titulo">Plan de Puntos de Inspección</div><div class="header-subtitulo">Catamarán 12</div></div>
+      </div>
+      <div class="header-acciones">
+        <span id="ppi-user-nombre" class="user-nombre" style="margin-right:8px"></span>
+        <button class="btn-logout btn-secondary">Cerrar sesión</button>
+      </div>
+    </header>
+    <div class="ppi-body">
+      <div class="calidad-selectores">
+        <div class="campo-filtro"><label>Bloque</label>
+          <select id="ppi-bloque"><option value="">— Bloque —</option><option value="T">Torre</option><option value="B">Basamento</option></select>
+        </div>
+        <div class="campo-filtro"><label>Nivel</label>
+          <select id="ppi-nivel"><option value="">— Nivel —</option></select>
+        </div>
+      </div>
+      <div id="ppi-cadena">
+        <div class="cal-placeholder">Elegí bloque y nivel para ver el plan de puntos de inspección.</div>
       </div>
     </div>
   </div>

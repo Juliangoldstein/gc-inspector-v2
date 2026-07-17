@@ -53,9 +53,9 @@ The browser talks to Firebase directly (config is inline near the top of the scr
 
 ## Front-end structure
 
-Six screens (`pantalla-login`, `-espera`, `-home`, `-planos`, `-inspector`, `-calidad`) live in the
-`<body>` and are toggled by the `mostrar(name)` helper via the `oculto` class — this is the entire
-"routing" mechanism; there is no framework or router. Two functional modules:
+Seven screens (`pantalla-login`, `-espera`, `-home`, `-planos`, `-inspector`, `-calidad`, `-ppi`) live
+in the `<body>` and are toggled by the `mostrar(name)` helper via the `oculto` class — this is the
+entire "routing" mechanism; there is no framework or router. Three functional modules:
 
 - **Inspector** (`iniciarPantallaPlanos` → `pantalla-inspector`): browse the Dropbox plan folder, open
   PDFs rendered with pdf.js into a canvas, then a tab system (the `pestañas` Map, `pestañaActiva`) with
@@ -63,6 +63,9 @@ Six screens (`pantalla-login`, `-espera`, `-home`, `-planos`, `-inspector`, `-ca
   (sync the active plan's state), and jsPDF report generation.
 - **Calidad** (`iniciarPantallaCalidad` → `pantalla-calidad`, the large block from ~line 1835): quality
   module, seeds its reference "empresas" into Firestore on first admin login (`sembrarEmpresasSiFalta`).
+- **PPI** (`iniciarPantallaPPI` → `pantalla-ppi`): the Plan de Puntos de Inspección — see its own
+  section below. Deliberately **independent of the other two**: it never reads `observaciones` or
+  `certificados`, and a pending observation does not gate any PPI approval.
 
 The nomenclature constants near the top — `DISCIPLINAS`, `NIVELES`, `BLOQUES`, `UNIDADES`, and the
 `CROQUIS DE CALIDAD` data — encode the real building's structure (blocks, floors, unit codes) and the
@@ -78,6 +81,29 @@ pickers; a comment notes they are meant to migrate to a shared `config/estructur
   the Sheet or certificates), but that is a safety net, not the intended flow.
 - **`notaResolucion` is always preserved.** Never wipe the resolution note on save (not even when an obs
   leaves `Resuelta`). It is kept as historical record.
+
+## PPI — Plan de Puntos de Inspección (business rules)
+
+`RUBROS_PPI` (near the top, after `UNIDADES`) is the source of truth: 12 rubros across 3 phases, each
+with its checklist `items`. It transcribes the paper PPI — **do not reword an item without checking
+the source PDFs**, since inspectors read these in the field.
+
+- **Hard blocking, strictly linear.** Rubro *N* cannot be loaded until *N-1* is released. `ppiBloqueo()`
+  returns `null` (open) or the reason string; it is the single place that encodes the chain.
+- **`ambito` is per-rubro, not per-phase.** Losa/Columnas/Vigas (1-3) and Contrapiso (8) are `'nivel'`;
+  the rest are `'unidad'`. Every unit-scoped rubro also gets **`EC`** (espacio común) as one more unit
+  of the level (`ppiUnidadesDeNivel` appends it).
+- **The 7→8 gate.** Because ámbitos alternate, Contrapiso (level-scoped) requires Plomería approved in
+  **all** units of the level, EC included — you cannot pour a floor's contrapiso with one unit's pipes
+  still open. This is the one non-obvious edge; `ppiBloqueo` handles it generically.
+- **`no_aplica` releases the chain like `aprobado`.** Without it, a rubro that doesn't exist in a given
+  ámbito (Carpintería de Aluminio in Bauleras) would block that ámbito forever.
+- **Approval requires the full checklist** and records a signature (`aprobadoPor`, `aprobadoPorNombre`,
+  `aprobadoEn`). Only `admin` can `Reabrir`; it warns when the successor is already approved but allows
+  it, leaving `reabiertoPor`/`reabiertoEn`.
+- **Firestore:** collection `ppi`, one doc per (ámbito, rubro) with a deterministic ID —
+  `T-02-losa` (level) / `T-02-A-yeso`, `T-02-EC-plomeria` (unit). Writes are `setDoc(..., {merge:true})`.
+  Roles: `inspector`/`admin` write, `lector` read-only.
 
 ## Security conventions to preserve
 
