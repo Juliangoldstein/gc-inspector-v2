@@ -133,10 +133,21 @@
     }
 
     // ─── PLAN DE PUNTOS DE INSPECCIÓN (PPI) ──────────────────────────────────
-    // Matriz maestra: 12 rubros encadenados en 3 fases. Aprobar un rubro libera
-    // al siguiente y sin esa aprobación el siguiente no se puede cargar (el PPI
-    // en papel lo dice así: "queda estrictamente prohibido iniciar un rubro sin
-    // la aprobación firmada del rubro precedente").
+    // Matriz maestra: 12 rubros en 3 fases. Aprobar un rubro libera a los que
+    // dependen de él y sin esa aprobación no se pueden cargar (el PPI en papel
+    // lo dice así: "queda estrictamente prohibido iniciar un rubro sin la
+    // aprobación firmada del/los rubro/s precedente/s").
+    //
+    // Por defecto cada rubro depende únicamente del anterior en el array (la
+    // fase 1 y la fase 3 son una cadena simple). Donde la dependencia no es
+    // "el anterior" sino un conjunto explícito de rubros, se declara con
+    // `depende: [slug, ...]` en la entrada correspondiente — hoy eso pasa en
+    // fase 2 (instalaciones): Marcos y Premarcos deja de trabar Electricidad
+    // y Plomería (ambas dependen directo de Mamposterías, en paralelo con
+    // Marcos), Electricidad y Plomería no se traban entre sí pero las dos
+    // trancan Contrapiso, y Yeso exige Marcos y Premarcos + Contrapiso
+    // aprobados (con lo cual, en cadena, Fase 3 solo abre cuando las cuatro
+    // instalaciones —Marcos, Electricidad, Plomería y Contrapiso— están listas).
     //
     // El `ambito` no es uniforme, porque los rubros no se controlan todos con la
     // misma granularidad: la losa, las columnas, las vigas y el contrapiso son
@@ -176,22 +187,22 @@
         'Ancho constante (arriba, al medio y abajo). La presión al amurar puede descuadrarlas; se deben colocar espaciadores.',
         'Pintado con 2 manos de antióxido (la parte interna requiere mayor protección contra la corrosión).',
       ] },
-      { n: 6, slug: 'electricidad', nombre: 'Electricidad', fase: 2, ambito: 'unidad', items: [
+      { n: 6, slug: 'electricidad', nombre: 'Electricidad', fase: 2, ambito: 'unidad', depende: ['mamposterias'], items: [
         'Chequear que las curvas sean suaves, prohibir que sean a 90°.',
         'Plomo de cajas (llaves y tomacorrientes).',
         'Asegurarse de que todas las cajas estén tapadas (con madera, bolsa o telgopor).',
         'Amurado de toda la instalación con alambre a la mampostería o con material.',
       ] },
-      { n: 7, slug: 'plomeria', nombre: 'Plomería', fase: 2, ambito: 'unidad', items: [
+      { n: 7, slug: 'plomeria', nombre: 'Plomería', fase: 2, ambito: 'unidad', depende: ['mamposterias'], items: [
         'Prueba hidráulica obligatoria: antes de tapar la instalación se debe hacer una prueba de presión con bomba manual entre 10 y 12 bar por 1 hora (no debe bajar nada en el manómetro).',
         'Controlar aislamiento térmico con fundas de espuma de polietileno en todo el recorrido de agua caliente.',
         'Todas las instalaciones deberán amurarse o colocarse grampas para fijarse al piso.',
       ] },
-      { n: 8, slug: 'contrapiso', nombre: 'Contrapiso', fase: 2, ambito: 'nivel', items: [
+      { n: 8, slug: 'contrapiso', nombre: 'Contrapiso', fase: 2, ambito: 'nivel', depende: ['electricidad', 'plomeria'], items: [
         'Protección de cañerías y fijación.',
         'Juntas de dilatación cada 4-5m y en todo el perímetro.',
       ] },
-      { n: 9, slug: 'yeso', nombre: 'Yeso', fase: 3, ambito: 'unidad', items: [
+      { n: 9, slug: 'yeso', nombre: 'Yeso', fase: 3, ambito: 'unidad', depende: ['marcos', 'contrapiso'], items: [
         'Verificar que los muros no cuenten con humedad ni salientes.',
         'La mampostería deberá ser previamente chicoteada.',
         'Control con luz rasante apuntando desde un lado a otro para demostrar cualquier ondulación.',
@@ -2667,29 +2678,50 @@
       return e === 'aprobado' || e === 'no_aplica';
     }
 
-    // Devuelve null si el rubro se puede cargar, o el texto del motivo si está
-    // bloqueado. Como la cadena alterna ámbitos, hay tres saltos posibles:
-    //  · nivel → nivel   (1→2, 2→3): alcanza con el rubro anterior del nivel.
-    //  · nivel → unidad  (3→4, 8→9): el rubro del nivel libera todas sus unidades.
-    //  · unidad → nivel  (7→8): el contrapiso es del piso entero, así que exige
-    //    la plomería aprobada en TODAS las unidades del nivel, EC incluido — no
-    //    se llena el contrapiso con una unidad sin las cañerías tapadas.
-    function ppiBloqueo(bloque, nivel, unidad, rubro) {
+    // De qué rubros depende `rubro` para poder cargarse. Si la entrada trae
+    // `depende` explícito se usa eso (fase 2 lo usa para armar el grafo con
+    // ramas en paralelo); si no, el default es el rubro inmediato anterior
+    // en el array (cadena simple, como en fase 1 y fase 3).
+    function ppiRequisitosSlugsDe(rubro) {
+      if (rubro.depende) return rubro.depende;
       const idx = RUBROS_PPI.findIndex(r => r.slug === rubro.slug);
-      if (idx <= 0) return null;
-      const prev = RUBROS_PPI[idx - 1];
-      const etiquetaPrev = `${prev.n}. ${prev.nombre}`;
-      if (prev.ambito === 'nivel') {
-        return ppiLiberado(bloque, nivel, null, prev) ? null
-          : `Requiere aprobar ${etiquetaPrev} en este nivel.`;
+      return idx > 0 ? [RUBROS_PPI[idx - 1].slug] : [];
+    }
+    function ppiRequisitosDe(rubro) {
+      return ppiRequisitosSlugsDe(rubro).map(ppiRubroPorSlug);
+    }
+    // Inversa: qué rubros dependen de `rubro` (para avisos al reabrir).
+    function ppiDependientesDe(rubro) {
+      return RUBROS_PPI.filter(r => ppiRequisitosSlugsDe(r).includes(rubro.slug));
+    }
+
+    // Devuelve null si el rubro se puede cargar, o el texto del/los motivo/s si
+    // está bloqueado. Cada requisito se evalúa según cómo cruzan los ámbitos:
+    //  · nivel → nivel/unidad: alcanza con el requisito aprobado en el nivel.
+    //  · unidad → unidad: alcanza con el requisito aprobado en esa misma unidad.
+    //  · unidad → nivel: el rubro es del piso entero, así que exige el requisito
+    //    aprobado en TODAS las unidades del nivel, EC incluido — no se llena el
+    //    contrapiso con una unidad sin las cañerías tapadas.
+    function ppiBloqueo(bloque, nivel, unidad, rubro) {
+      const motivos = [];
+      for (const req of ppiRequisitosDe(rubro)) {
+        const etiquetaReq = `${req.n}. ${req.nombre}`;
+        if (req.ambito === 'nivel') {
+          if (!ppiLiberado(bloque, nivel, null, req)) {
+            motivos.push(`Requiere aprobar ${etiquetaReq} en este nivel.`);
+          }
+        } else if (rubro.ambito === 'unidad') {
+          if (!ppiLiberado(bloque, nivel, unidad, req)) {
+            motivos.push(`Requiere aprobar ${etiquetaReq} en ${etiquetaUnidad(unidad)}.`);
+          }
+        } else {
+          const faltan = ppiUnidadesDeNivel(bloque, nivel).filter(u => !ppiLiberado(bloque, nivel, u, req));
+          if (faltan.length > 0) {
+            motivos.push(`Requiere aprobar ${etiquetaReq} en todas las unidades del nivel. Faltan: ${faltan.map(etiquetaUnidad).join(', ')}.`);
+          }
+        }
       }
-      if (rubro.ambito === 'unidad') {
-        return ppiLiberado(bloque, nivel, unidad, prev) ? null
-          : `Requiere aprobar ${etiquetaPrev} en ${etiquetaUnidad(unidad)}.`;
-      }
-      const faltan = ppiUnidadesDeNivel(bloque, nivel).filter(u => !ppiLiberado(bloque, nivel, u, prev));
-      return faltan.length === 0 ? null
-        : `Requiere aprobar ${etiquetaPrev} en todas las unidades del nivel. Faltan: ${faltan.map(etiquetaUnidad).join(', ')}.`;
+      return motivos.length === 0 ? null : motivos.join(' ');
     }
 
     function ppiItemsMarcados(rubro, datos) {
@@ -2765,15 +2797,19 @@
       if (currentUserData?.rol !== 'admin') return;
       const donde = unidad ? etiquetaUnidad(unidad) : NIVELES[ppiNivel] || ppiNivel;
       let aviso = `¿Reabrir ${rubro.n}. ${rubro.nombre} en ${donde}? Se borra la aprobación y vuelve a Pendiente.`;
-      // Si el rubro siguiente ya está liberado, reabrir este deja la cadena
-      // inconsistente (un rubro aprobado colgando de uno pendiente). Se permite
-      // igual — en obra puede ser justo lo que hace falta — pero avisando.
-      const sig = RUBROS_PPI[RUBROS_PPI.findIndex(r => r.slug === rubro.slug) + 1];
-      if (sig) {
+      // Si algún rubro que depende de este ya está liberado, reabrir deja la
+      // cadena inconsistente (un rubro aprobado colgando de uno pendiente).
+      // Se permite igual — en obra puede ser justo lo que hace falta — pero
+      // avisando. Puede haber más de un dependiente (ej: Contrapiso depende
+      // de Electricidad y de Plomería).
+      const colgando = ppiDependientesDe(rubro).filter(sig => {
         const ambitosSig = sig.ambito === 'unidad' ? ppiUnidadesDeNivel(ppiBloque, ppiNivel) : [null];
-        if (ambitosSig.some(u => ppiLiberado(ppiBloque, ppiNivel, u, sig))) {
-          aviso += `\n\nOjo: ${sig.n}. ${sig.nombre} ya está aprobado y va a quedar colgando de un rubro pendiente.`;
-        }
+        return ambitosSig.some(u => ppiLiberado(ppiBloque, ppiNivel, u, sig));
+      });
+      if (colgando.length > 0) {
+        const nombres = colgando.map(s => `${s.n}. ${s.nombre}`).join(', ');
+        const plural = colgando.length > 1;
+        aviso += `\n\nOjo: ${nombres} ya ${plural ? 'están aprobados' : 'está aprobado'} y va${plural ? 'n' : ''} a quedar colgando de un rubro pendiente.`;
       }
       if (!confirm(aviso)) return;
       try {
