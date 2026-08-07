@@ -106,29 +106,34 @@
     // en cada piso de cada bloque. Claves = códigos de la nomenclatura.
     // Fuente temporal: cuando exista la app de Calidad, esto migra a
     // config/estructura en Firestore como fuente única para ambas apps.
+    // 'EC' (espacio común) es una unidad más de cada nivel: se controla y se
+    // certifica igual que un depto. Va al final de cada lista para que aparezca
+    // último en los selectores. Debe seguir siendo un valor válido en UNIDADES
+    // para que corregirDeptosInvalidos no lo trate como depto inválido.
     const UNIDADES = {
       'T': {
-        '00': ['A','L1','L2','L3'],
-        '01': ['A','B','C','D'],
-        '02': ['A','B','C','D'],
-        '03': ['SUM','GYM'],
-        '04': ['A','B','C'],
-        '05': ['A','B','C'],
-        '06': ['A','B'],
-        '07': ['A','B'],
-        '08': ['A','B'],
-        '99': ['Bauleras'],
+        '00': ['A','L1','L2','L3','EC'],
+        '01': ['A','B','C','D','EC'],
+        '02': ['A','B','C','D','EC'],
+        '03': ['SUM','GYM','EC'],
+        '04': ['A','B','C','EC'],
+        '05': ['A','B','C','EC'],
+        '06': ['A','B','EC'],
+        '07': ['A','B','EC'],
+        '08': ['A','B','EC'],
+        '99': ['Bauleras','EC'],
       },
       'B': {
-        '00': ['B','L4','L5','L6','L7'],
-        '01': ['E','F','G','H','I','J'],
-        '02': ['E','F','G','H','I','J'],
-        '03': ['Terraza'],
+        '00': ['B','L4','L5','L6','L7','EC'],
+        '01': ['E','F','G','H','I','J','EC'],
+        '02': ['E','F','G','H','I','J','EC'],
+        '03': ['Terraza','EC'],
       },
     };
 
     // L1, L2... se muestran como "Local 1", "Local 2"... (el valor guardado sigue siendo L1)
     function etiquetaUnidad(u) {
+      if (u === 'EC') return 'Espacio común';
       return /^L\d+$/.test(u) ? 'Local ' + u.slice(1) : u;
     }
 
@@ -556,6 +561,11 @@
 
     // Subconjunto certificable (los que aparecen en el selector de Calidad).
     const RUBROS_CERTIFICABLES = ['Agua','Aire Acondicionado','Aluminio','Cerámico','Cloaca y pluvial','Contrapiso','Durlock','Electricidad','Gas','Incendio','Mampostería','Marcos','Mármoles','Muebles','Pintura','Placares','Premarcos','Revoques interior','Yeso','Zócalos'];
+
+    // Subconjunto de rubros aplicables al Espacio Común (EC): el EC se certifica
+    // como "una unidad más" del nivel, pero solo con estos rubros (no llevan
+    // Placares, Muebles, Aluminio, Premarcos, Mármoles ni Aire Acondicionado).
+    const RUBROS_EC = ['Agua','Cerámico','Cloaca y pluvial','Contrapiso','Durlock','Electricidad','Gas','Incendio','Mampostería','Marcos','Pintura','Revoques interior','Yeso','Zócalos'];
 
     // Empresas/subcontratistas iniciales por rubro. Se usan solo para SEMBRAR
     // config/empresas en Firestore la primera vez (si el doc no existe). Después
@@ -2195,6 +2205,23 @@
         u.style.cursor = 'pointer';
         u.addEventListener('click', () => abrirDetalleUnidad(bloque, nivel, depto, rubro));
       });
+
+      // Espacio común (EC): se trata como una unidad más del nivel, pero solo es
+      // certificable para el subconjunto RUBROS_EC. Si el rubro elegido aplica,
+      // el/los shape(s) .espacio-comun del croquis se vuelven interactivos y se
+      // pintan según el estado calculado para la celda EC. Si no aplica, quedan
+      // como área no interactiva (comportamiento por defecto). Todos los shapes
+      // de espacio común del nivel representan un único EC ("uno por nivel").
+      if (RUBROS_EC.includes(rubro)) {
+        const { estado } = estadoCelda(bloque, nivel, 'EC', rubro);
+        svg.querySelectorAll('.espacio-comun').forEach(ec => {
+          ec.dataset.unidad = 'EC';
+          ec.classList.add('unidad', 'estado-' + estado);
+          ec.style.pointerEvents = 'auto';
+          ec.style.cursor = 'pointer';
+          ec.addEventListener('click', () => abrirDetalleUnidad(bloque, nivel, 'EC', rubro));
+        });
+      }
     }
 
     // ── Panel de detalle de una unidad ──
@@ -2659,7 +2686,8 @@
     // unidad más: todo rubro por unidad se controla también en el EC.
     function ppiUnidadesDeNivel(bloque, nivel) {
       const u = UNIDADES[bloque]?.[nivel];
-      return u ? [...u, 'EC'] : [];
+      // EC ya viene incluido en UNIDADES; el Set evita duplicarlo si estuviera.
+      return u ? [...new Set([...u, 'EC'])] : [];
     }
 
     function ppiDocId(bloque, nivel, unidad, slug) {
