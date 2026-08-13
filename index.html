@@ -138,30 +138,39 @@
     }
 
     // ─── PLAN DE PUNTOS DE INSPECCIÓN (PPI) ──────────────────────────────────
-    // Matriz maestra: 12 rubros en 3 fases. Aprobar un rubro libera a los que
+    // Matriz maestra: 20 rubros en 3 fases. Aprobar un rubro libera a los que
     // dependen de él y sin esa aprobación no se pueden cargar (el PPI en papel
     // lo dice así: "queda estrictamente prohibido iniciar un rubro sin la
     // aprobación firmada del/los rubro/s precedente/s").
     //
     // Por defecto cada rubro depende únicamente del anterior en el array (la
-    // fase 1 y la fase 3 son una cadena simple). Donde la dependencia no es
-    // "el anterior" sino un conjunto explícito de rubros, se declara con
-    // `depende: [slug, ...]` en la entrada correspondiente — hoy eso pasa en
-    // fase 2 (instalaciones): Marcos y Premarcos deja de trabar Electricidad
-    // y Plomería (ambas dependen directo de Mamposterías, en paralelo con
-    // Marcos), Electricidad y Plomería no se traban entre sí pero las dos
-    // trancan Contrapiso, y Yeso exige Marcos y Premarcos + Contrapiso
-    // aprobados (con lo cual, en cadena, Fase 3 solo abre cuando las cuatro
-    // instalaciones —Marcos, Electricidad, Plomería y Contrapiso— están listas).
+    // fase 1 y buena parte de fase 3 son cadena simple). Donde la dependencia
+    // no es "el anterior" sino un conjunto explícito, se declara con
+    // `depende: [slug, ...]`:
+    //  · Fase 2: Marcos y Premarcos, Electricidad, Plomería, Aire Acondicionado
+    //    y Gas dependen todos en paralelo de Mamposterías. Revoques interior
+    //    depende de Electricidad Y Plomería. Contrapiso depende de
+    //    Electricidad, Plomería Y Aire Acondicionado.
+    //  · Fase 3: Yeso exige Marcos, Contrapiso Y Gas. Durlock depende de Yeso
+    //    (default, cadena simple). Cerámicos exige Durlock Y Revoques interior.
+    //    Desde Cerámicos se abren dos ramas en paralelo: Carpintería de
+    //    Aluminio → {Placares, Pintura, Zócalos} (sin restringirse entre sí) y
+    //    Muebles → Mármoles.
+    //  · Incendio no tiene punto de PPI — certifica en Calidad solo mirando
+    //    observaciones (ver PPI_MAP_CALIDAD más abajo).
     //
     // El `ambito` no es uniforme, porque los rubros no se controlan todos con la
     // misma granularidad: la losa, las columnas, las vigas y el contrapiso son
     // del piso entero, mientras que las mamposterías, las instalaciones y las
     // terminaciones se controlan unidad por unidad. Los rubros por unidad suman
-    // 'EC' (espacio común) como una unidad más del nivel.
+    // 'EC' (espacio común) como una unidad más del nivel — salvo que traigan
+    // `sinEC: true`, en cuyo caso ese rubro no se controla en EC (Aire
+    // Acondicionado, Revoques interior, Muebles, Mármoles y Placares).
     //
     // Este PPI es independiente del módulo de inspección: no lee ni escribe
     // `observaciones`, y una obs pendiente no condiciona ninguna aprobación.
+    // Calidad sí lee este módulo (colección `ppi`) para habilitar o no la
+    // certificación de cada celda — ver PPI_MAP_CALIDAD.
     const FASES_PPI = { 1: 'Estructura', 2: 'Instalaciones', 3: 'Terminaciones' };
 
     const RUBROS_PPI = [
@@ -203,36 +212,114 @@
         'Controlar aislamiento térmico con fundas de espuma de polietileno en todo el recorrido de agua caliente.',
         'Todas las instalaciones deberán amurarse o colocarse grampas para fijarse al piso.',
       ] },
-      { n: 8, slug: 'contrapiso', nombre: 'Contrapiso', fase: 2, ambito: 'nivel', depende: ['electricidad', 'plomeria'], items: [
+      { n: 8, slug: 'aire_acondicionado', nombre: 'Aire Acondicionado', fase: 2, ambito: 'unidad', sinEC: true, depende: ['mamposterias'], items: [
+        'Verificar ubicación conforme a planos.',
+        'Presurizar el circuito con nitrógeno seco y revisar soldaduras y conexiones con detector de fugas o solución jabonosa.',
+        'Controlar el correcto aislamiento de la cañería.',
+        'La cañería no debe presentar aplastamientos, estrangulamientos, pliegues ni curvas demasiado cerradas.',
+        'El desagüe debe tener pendiente continua hacia el punto de descarga, sin contrapendientes ni sifones involuntarios, y quedar sujeto para no perder la pendiente con el tiempo.',
+      ] },
+      { n: 9, slug: 'gas', nombre: 'Gas', fase: 2, ambito: 'unidad', depende: ['mamposterias'], items: [
+        'Verificar que diámetros, recorridos y ubicación de las bocas coincidan con el plano aprobado.',
+        'Controlar que las cañerías estén correctamente fijadas y que la protección anticorrosiva sea continua, especialmente en uniones y roscas.',
+        'Prueba de hermeticidad obligatoria con manómetro, según las condiciones definidas por el gasista matriculado: no debe registrarse ninguna caída de presión.',
+      ] },
+      { n: 10, slug: 'revoques_interior', nombre: 'Revoques interior', fase: 2, ambito: 'unidad', sinEC: true, depende: ['electricidad', 'plomeria'], items: [
+        'Controlar plomo, nivel y planeidad con regla: no deben quedar ondulaciones, pozos ni salientes.',
+        'Colocar malla en los encuentros entre mampostería y hormigón para evitar fisuras.',
+        'Verificar escuadras en esquinas y que cajas eléctricas, marcos y cañerías queden correctamente nivelados respecto del revoque terminado.',
+        'Controlar que no existan fisuras, sectores huecos, desprendimientos ni diferencias importantes de textura.',
+      ] },
+      { n: 11, slug: 'contrapiso', nombre: 'Contrapiso', fase: 2, ambito: 'nivel', depende: ['electricidad', 'plomeria', 'aire_acondicionado'], items: [
         'Protección de cañerías y fijación.',
         'Juntas de dilatación cada 4-5m y en todo el perímetro.',
       ] },
-      { n: 9, slug: 'yeso', nombre: 'Yeso', fase: 3, ambito: 'unidad', depende: ['marcos', 'contrapiso'], items: [
+      { n: 12, slug: 'yeso', nombre: 'Yeso', fase: 3, ambito: 'unidad', depende: ['marcos', 'contrapiso', 'gas'], items: [
         'Verificar que los muros no cuenten con humedad ni salientes.',
         'La mampostería deberá ser previamente chicoteada.',
         'Control con luz rasante apuntando desde un lado a otro para demostrar cualquier ondulación.',
         'Controlar con golpe de nudillos para saber si se siente hueco o soplado.',
         'Es obligatorio usar cantoneras en las esquinas.',
       ] },
-      { n: 10, slug: 'durlock', nombre: 'Durlock', fase: 3, ambito: 'unidad', items: [
+      { n: 13, slug: 'durlock', nombre: 'Durlock', fase: 3, ambito: 'unidad', items: [
         'Verificar que las placas nunca estén sin trabar (no debe formarse una cruz, sino una "TE").',
         'Usar siempre cinta de papel para las juntas, asentada con masilla.',
         'Los tornillos deben quedar rehundidos por lo menos 1mm.',
         'Tomado de juntas en 3 pasadas respetando el secado (la última bien ancha para perder la junta).',
       ] },
-      { n: 11, slug: 'ceramicos', nombre: 'Cerámicos', fase: 3, ambito: 'unidad', items: [
+      { n: 14, slug: 'ceramicos', nombre: 'Cerámicos', fase: 3, ambito: 'unidad', depende: ['durlock', 'revoques_interior'], items: [
         'Grandes piezas: colocar doble encolado para evitar burbujas de aire y asegurar adherencia.',
         'Pasar una regla en todas las direcciones (la luz vista no puede superar los 2mm).',
         'Juntas limpias de pegamento antes de colocar la pastina.',
         'Controlar revestimientos usando nivel láser para ver si se cae o sube en el camino.',
       ] },
-      { n: 12, slug: 'carpinteria', nombre: 'Carpintería de Aluminio', fase: 3, ambito: 'unidad', items: [
+      { n: 15, slug: 'carpinteria', nombre: 'Carpintería de Aluminio', fase: 3, ambito: 'unidad', sinEC: true, depende: ['ceramicos'], items: [
         'Verificación de plomos.',
         'Abertura sujeta mediante tornillos de acero inoxidable o tarugos a distancias correctas (un tornillo cada 50 cm o 60 cm).',
         'Si se fija directo al muro (sin premarco), dejar una luz perimetral uniforme de 3 mm a 5 mm para sellador y absorber dilataciones térmicas.',
         'Verificar topes de goma en extremos de guías de ventanas corredizas para evitar golpes fuertes contra el marco.',
       ] },
+      { n: 16, slug: 'muebles', nombre: 'Muebles', fase: 3, ambito: 'unidad', sinEC: true, depende: ['ceramicos'], items: [
+        'Verificar ubicación, medidas y distribución según plano, incluyendo espacios para electrodomésticos.',
+        'Verificar fijación firme a los muros y correcta unión entre módulos.',
+        'Controlar que puertas y cajones estén alineados, con luces uniformes, y abran sin roces ni interferencias.',
+        'Verificar el correcto e igual funcionamiento en todas las correderas y puertas con pistones.',
+        'Revisar que cuente con los accesorios correspondientes (piso de galvanizado, cubiertero).',
+      ] },
+      { n: 17, slug: 'marmoles', nombre: 'Mármoles', fase: 3, ambito: 'unidad', sinEC: true, depende: ['muebles'], items: [
+        'Verificar cortes de bacha, anafe y grifería: ubicación correcta, bordes terminados y sin fisuras.',
+        'Controlar que las uniones sean parejas, discretas y correctamente selladas.',
+        'Verificar la fijación de la bacha y el sellado perimetral contra muros, evitando posibles filtraciones.',
+      ] },
+      { n: 18, slug: 'placares', nombre: 'Placares', fase: 3, ambito: 'unidad', sinEC: true, depende: ['carpinteria'], items: [
+        'Controlar el funcionamiento de correderas, bisagras, barrales y herrajes.',
+        'Verificar terminaciones: cantos sellados, uniones prolijas y superficies sin golpes, rayas ni manchas.',
+      ] },
+      { n: 19, slug: 'pintura', nombre: 'Pintura', fase: 3, ambito: 'unidad', depende: ['carpinteria'], items: [
+        'Verificar que las superficies estén secas, limpias, lijadas y sin fisuras, ondulaciones ni imperfecciones.',
+        'Verificar uniformidad de color y terminación con luz natural y luz rasante, sin manchas, transparencias ni marcas de rodillo.',
+        'Controlar cortes prolijos en los encuentros con cielorrasos, marcos, zócalos y revestimientos.',
+        'Verificar que pisos, carpinterías, muebles y artefactos queden protegidos y sin salpicaduras.',
+      ] },
+      { n: 20, slug: 'zocalos', nombre: 'Zócalos', fase: 3, ambito: 'unidad', depende: ['carpinteria'], items: [
+        'Controlar nivel, alineación y apoyo continuo contra piso y pared.',
+        'Verificar uniones, esquinas y encuentros con marcos, sin separaciones ni cortes desprolijos.',
+        'Controlar fijación firme, sin movimientos ni piezas huecas o desprendidas.',
+        'Verificar sellado superior y terminación, sin restos de adhesivo ni manchas.',
+      ] },
     ];
+
+    // Mapeo PPI → Calidad: qué punto de PPI (por slug) habilita la
+    // certificación de cada rubro certificable de Calidad. Un slug de PPI
+    // puede mapear a más de un rubro de Calidad (ej. "marcos" cubre tanto
+    // Marcos como Premarcos; "plomeria" cubre Agua y Cloaca y pluvial). Los
+    // rubros de Calidad que no aparecen acá (hoy solo Incendio) no tienen
+    // gate de PPI: certifican solo mirando observaciones, como antes de este
+    // cambio de arquitectura.
+    const PPI_MAP_CALIDAD = {
+      mamposterias:       ['Mampostería'],
+      marcos:             ['Marcos', 'Premarcos'],
+      electricidad:       ['Electricidad'],
+      plomeria:           ['Agua', 'Cloaca y pluvial'],
+      aire_acondicionado: ['Aire Acondicionado'],
+      gas:                ['Gas'],
+      revoques_interior:  ['Revoques interior'],
+      contrapiso:         ['Contrapiso'],
+      yeso:               ['Yeso'],
+      durlock:            ['Durlock'],
+      ceramicos:          ['Cerámico'],
+      carpinteria:        ['Aluminio'],
+      muebles:            ['Muebles'],
+      marmoles:           ['Mármoles'],
+      placares:           ['Placares'],
+      pintura:            ['Pintura'],
+      zocalos:            ['Zócalos'],
+    };
+    // Inversa, para ir de un rubro de Calidad al slug de PPI que lo controla.
+    const CALIDAD_RUBRO_A_PPI = {};
+    Object.entries(PPI_MAP_CALIDAD).forEach(([slug, nombres]) => {
+      nombres.forEach(nombre => { CALIDAD_RUBRO_A_PPI[nombre] = slug; });
+    });
 
     // ─── CROQUIS DE CALIDAD ───────────────────────────────────────────────────
     // Cada croquis es un SVG con una forma por unidad (data-unidad="X") y las
@@ -564,8 +651,10 @@
 
     // Subconjunto de rubros aplicables al Espacio Común (EC): el EC se certifica
     // como "una unidad más" del nivel, pero solo con estos rubros (no llevan
-    // Placares, Muebles, Aluminio, Premarcos, Mármoles ni Aire Acondicionado).
-    const RUBROS_EC = ['Agua','Cerámico','Cloaca y pluvial','Contrapiso','Durlock','Electricidad','Gas','Incendio','Mampostería','Marcos','Pintura','Revoques interior','Yeso','Zócalos'];
+    // Placares, Muebles, Aluminio, Premarcos, Mármoles, Aire Acondicionado ni
+    // Revoques interior — este último se sacó para quedar coherente con el
+    // punto de PPI que lo controla, que tampoco se controla en EC).
+    const RUBROS_EC = ['Agua','Cerámico','Cloaca y pluvial','Contrapiso','Durlock','Electricidad','Gas','Incendio','Mampostería','Marcos','Pintura','Yeso','Zócalos'];
 
     // Empresas/subcontratistas iniciales por rubro. Se usan solo para SEMBRAR
     // config/empresas en Firestore la primera vez (si el doc no existe). Después
@@ -2052,6 +2141,7 @@
     // entrar a Calidad y se refresca tras certificar o con el botón Actualizar.
     let calidadObs = [];          // todas las observaciones
     let calidadCerts = [];        // todos los certificados
+    let calidadPpi = [];          // todos los docs de la colección `ppi` (gate de certificación)
     let empresasCalidad = {};     // { rubro: [empresas] } desde config/empresas
     let calidadUnidadSel = null;  // { bloqueCod, nivelCod, depto } de la unidad tocada
 
@@ -2078,16 +2168,37 @@
 
     // ── Carga de datos para el cálculo de estados ──
     async function cargarDatosCalidad() {
-      const [obsSnap, certSnap] = await Promise.all([
+      const [obsSnap, certSnap, ppiSnap] = await Promise.all([
         getDocs(collection(db, 'observaciones')),
         getDocs(collection(db, 'certificados')),
+        getDocs(collection(db, 'ppi')),
       ]);
       calidadObs   = obsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
       calidadCerts = certSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      calidadPpi   = ppiSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    }
+
+    // Gate de PPI para una celda de Calidad: ¿el punto de PPI que controla
+    // este rubro está aprobado (o no aplica) para este bloque/nivel/unidad?
+    // Si el rubro de Calidad no tiene punto de PPI asociado (hoy, Incendio),
+    // no hay gate: aplica=false y la celda se calcula como siempre, solo con
+    // observaciones. `no_aplica` cuenta igual que `aprobado` — libera la
+    // celda a que dependa solo de las observaciones, nunca queda trabada en
+    // "Sin inspección" por un rubro que directamente no existe ahí.
+    function ppiGateParaCelda(bloqueCod, nivelCod, depto, rubroCalidad) {
+      const slug = CALIDAD_RUBRO_A_PPI[rubroCalidad];
+      if (!slug) return { aplica: false, liberado: true };
+      const rubroPpi = ppiRubroPorSlug(slug);
+      const unidadPpi = rubroPpi.ambito === 'nivel' ? null : depto;
+      const docPpi = calidadPpi.find(p =>
+        p.bloque === bloqueCod && p.nivel === nivelCod && p.rubro === slug &&
+        (p.unidad || null) === unidadPpi);
+      const estado = docPpi?.estado || 'pendiente';
+      return { aplica: true, liberado: estado === 'aprobado' || estado === 'no_aplica' };
     }
 
     // ── Cálculo del estado de una celda (bloque+nivel+depto+rubro) ──
-    // El estado NO se guarda: se deriva siempre de las obs y los certificados.
+    // El estado NO se guarda: se deriva siempre del PPI, las obs y los certificados.
     function estadoCelda(bloqueCod, nivelCod, depto, rubro) {
       const obs = calidadObs.filter(o =>
         o.rubro === rubro && o.depto === depto &&
@@ -2098,6 +2209,15 @@
 
       const pendientes = obs.filter(o => o.estado === 'Pendiente');
       const resueltas  = obs.filter(o => o.estado === 'Resuelta');
+
+      // El gate de PPI pisa todo lo demás, incluso un certificado ya
+      // emitido: si el punto de PPI se reabrió después de certificar, la
+      // celda cae a "Sin inspección" (no a "Con pendientes" — no hay ninguna
+      // observación nueva, se retiró la garantía de origen).
+      const gate = ppiGateParaCelda(bloqueCod, nivelCod, depto, rubro);
+      if (gate.aplica && !gate.liberado) {
+        return { estado: 'sin-inspeccion', puedeCertificar: false, obs, certs };
+      }
 
       // Prioridad visual: lo pendiente gana siempre, aunque ya exista certificado.
       if (pendientes.length) return { estado: 'con-pendientes', puedeCertificar: false, obs, certs };
@@ -2113,7 +2233,12 @@
       }
 
       if (resueltas.length) return { estado: 'lista', puedeCertificar: true, obs, certs };
-      return { estado: 'sin-inspeccion', puedeCertificar: true, obs, certs };
+      // Nunca "Sin inspección" acá: si llegamos hasta este punto es porque no
+      // hay pendientes y, si el rubro tiene gate de PPI, ya está liberado.
+      // "Sin inspección" queda reservado exclusivamente al bloqueo de PPI de
+      // arriba — cero observaciones no es motivo de bloqueo, solo significa
+      // que todavía no se cargó ninguna (y ya se puede certificar igual).
+      return { estado: 'lista', puedeCertificar: true, obs, certs };
     }
 
     const ESTADO_LABEL = {
@@ -2238,6 +2363,17 @@
       const badge = document.getElementById('cal-detalle-estado');
       badge.textContent = ESTADO_LABEL[info.estado];
       badge.className = 'cal-badge-estado estado-badge-' + info.estado;
+
+      // Si el bloqueo es por PPI (no por falta de observaciones), lo decimos
+      // explícito — si no, "Sin observaciones registradas" no explica nada.
+      const gate = ppiGateParaCelda(bloqueCod, nivelCod, depto, rubro);
+      let avisoPpiHtml = '';
+      if (gate.aplica && !gate.liberado) {
+        const slugPpi = CALIDAD_RUBRO_A_PPI[rubro];
+        const rubroPpi = ppiRubroPorSlug(slugPpi);
+        avisoPpiHtml = `<div class="cal-aviso-ppi">🔒 Falta aprobar <strong>${rubroPpi.n}. ${escapeHtml(rubroPpi.nombre)}</strong> en el PPI (${rubroPpi.ambito === 'nivel' ? 'este nivel' : etiquetaUnidad(depto)}) antes de poder certificar.</div>`;
+      }
+      document.getElementById('cal-detalle-aviso-ppi').innerHTML = avisoPpiHtml;
 
       // Observaciones
       let obsHtml = '';
@@ -2683,11 +2819,31 @@
     const ppiRubroPorSlug = (slug) => RUBROS_PPI.find(r => r.slug === slug);
 
     // Las unidades del nivel + EC (espacio común), que a efectos del PPI es una
-    // unidad más: todo rubro por unidad se controla también en el EC.
+    // unidad más: todo rubro por unidad se controla también en el EC — salvo
+    // los que traen `sinEC: true` (ver ppiUnidadesParaRubro).
     function ppiUnidadesDeNivel(bloque, nivel) {
       const u = UNIDADES[bloque]?.[nivel];
       // EC ya viene incluido en UNIDADES; el Set evita duplicarlo si estuviera.
       return u ? [...new Set([...u, 'EC'])] : [];
+    }
+
+    // Igual que ppiUnidadesDeNivel pero filtrando EC si el rubro no se
+    // controla ahí. Es lo que hay que usar siempre que se itere "todas las
+    // unidades de este rubro" — usar ppiUnidadesDeNivel a secas para un rubro
+    // sinEC deja una fila EC fantasma que nunca se puede aprobar y traba
+    // cualquier cosa que dependa de "todas las unidades" para siempre.
+    function ppiUnidadesParaRubro(rubro, bloque, nivel) {
+      const todas = ppiUnidadesDeNivel(bloque, nivel);
+      return rubro.sinEC ? todas.filter(u => u !== 'EC') : todas;
+    }
+
+    // Como ppiLiberado, pero con la misma salvedad: si el requisito no se
+    // controla en EC y la unidad consultada es EC, no hay nada que exigir ahí
+    // y no debe bloquear (ej. Cerámicos en EC no puede quedar atado para
+    // siempre a Revoques interior, que no tiene fila en EC).
+    function ppiLiberadoParaRequisito(bloque, nivel, unidad, req) {
+      if (unidad === 'EC' && req.sinEC) return true;
+      return ppiLiberado(bloque, nivel, unidad, req);
     }
 
     function ppiDocId(bloque, nivel, unidad, slug) {
@@ -2739,11 +2895,15 @@
             motivos.push(`Requiere aprobar ${etiquetaReq} en este nivel.`);
           }
         } else if (rubro.ambito === 'unidad') {
-          if (!ppiLiberado(bloque, nivel, unidad, req)) {
+          if (!ppiLiberadoParaRequisito(bloque, nivel, unidad, req)) {
             motivos.push(`Requiere aprobar ${etiquetaReq} en ${etiquetaUnidad(unidad)}.`);
           }
         } else {
-          const faltan = ppiUnidadesDeNivel(bloque, nivel).filter(u => !ppiLiberado(bloque, nivel, u, req));
+          // rubro es de nivel y el requisito es de unidad (ej. Contrapiso
+          // exige Aire Acondicionado): solo en las unidades donde ese
+          // requisito se controla — ppiUnidadesParaRubro(req,...), no
+          // ppiUnidadesDeNivel a secas, o un requisito sinEC nunca liberaría.
+          const faltan = ppiUnidadesParaRubro(req, bloque, nivel).filter(u => !ppiLiberado(bloque, nivel, u, req));
           if (faltan.length > 0) {
             motivos.push(`Requiere aprobar ${etiquetaReq} en todas las unidades del nivel. Faltan: ${faltan.map(etiquetaUnidad).join(', ')}.`);
           }
@@ -2819,6 +2979,29 @@
       }
     }
 
+    // Certificados de Calidad que quedan afectados si se reabre `rubro` en
+    // `unidad` (o en el nivel entero, si el rubro es de ámbito nivel). Se
+    // usa para avisar antes de reabrir — reabrir un punto de PPI ya
+    // certificado en Calidad hace que esa celda caiga a "Sin inspección"
+    // (ver estadoCelda), a diferencia de una observación nueva que la manda
+    // a "Con pendientes": acá no hay pendiente que mostrar, se retiró la
+    // garantía de origen y hay que revalidar desde cero.
+    async function ppiCertificadosAfectados(rubro, unidad) {
+      const nombresCalidad = PPI_MAP_CALIDAD[rubro.slug] || [];
+      if (!nombresCalidad.length) return [];
+      const deptos = rubro.ambito === 'nivel' ? ppiUnidadesDeNivel(ppiBloque, ppiNivel) : [unidad];
+      try {
+        const snap = await getDocs(collection(db, 'certificados'));
+        return snap.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          .filter(c => c.bloqueCod === ppiBloque && c.nivelCod === ppiNivel &&
+            nombresCalidad.includes(c.rubro) && deptos.includes(c.depto));
+      } catch (e) {
+        console.error(e); registrarError('ppi_certificados_afectados', e, { rubro: rubro.slug, unidad });
+        return []; // si falla la consulta, no bloqueamos la reapertura — solo no se muestra el aviso extra
+      }
+    }
+
     // Solo admin. Con bloqueo duro, una aprobación por error deja el rubro
     // siguiente abierto y no hay forma de volver atrás sin esto.
     async function ppiReabrir(rubro, unidad) {
@@ -2831,13 +3014,18 @@
       // avisando. Puede haber más de un dependiente (ej: Contrapiso depende
       // de Electricidad y de Plomería).
       const colgando = ppiDependientesDe(rubro).filter(sig => {
-        const ambitosSig = sig.ambito === 'unidad' ? ppiUnidadesDeNivel(ppiBloque, ppiNivel) : [null];
+        const ambitosSig = sig.ambito === 'unidad' ? ppiUnidadesParaRubro(sig, ppiBloque, ppiNivel) : [null];
         return ambitosSig.some(u => ppiLiberado(ppiBloque, ppiNivel, u, sig));
       });
       if (colgando.length > 0) {
         const nombres = colgando.map(s => `${s.n}. ${s.nombre}`).join(', ');
         const plural = colgando.length > 1;
         aviso += `\n\nOjo: ${nombres} ya ${plural ? 'están aprobados' : 'está aprobado'} y va${plural ? 'n' : ''} a quedar colgando de un rubro pendiente.`;
+      }
+      const certsAfectados = await ppiCertificadosAfectados(rubro, unidad);
+      if (certsAfectados.length > 0) {
+        const listado = certsAfectados.map(c => `${c.rubro} · ${etiquetaUnidad(c.depto)}`).join(', ');
+        aviso += `\n\n⚠️ Ya existe certificado emitido en Calidad para: ${listado}. Al reabrir, esa/s celda/s vuelve/n a "Sin inspección" y no se van a poder certificar hasta volver a aprobar este punto de PPI.`;
       }
       if (!confirm(aviso)) return;
       try {
@@ -2973,7 +3161,7 @@
           fase = rubro.fase;
           html += `<div class="ppi-fase"><span class="ppi-fase-n">Fase ${fase}</span>${escapeHtml(FASES_PPI[fase])}</div>`;
         }
-        html += rubro.ambito === 'nivel' ? ppiCardNivel(rubro) : ppiCardUnidad(rubro, unidades);
+        html += rubro.ambito === 'nivel' ? ppiCardNivel(rubro) : ppiCardUnidad(rubro, ppiUnidadesParaRubro(rubro, ppiBloque, ppiNivel));
       });
       cont.innerHTML = html;
     }
@@ -3297,6 +3485,7 @@
     .ppi-fila-head{padding-left:24px;}
     .ppi-fila-body{background:var(--bg);padding:2px 14px 12px 24px;}
     .ppi-aviso-bloqueo{background:rgba(224,82,82,0.08);border:1px solid rgba(224,82,82,0.25);color:#e08c8c;border-radius:6px;padding:8px 10px;font-size:12px;line-height:1.45;}
+    .cal-aviso-ppi{background:rgba(224,82,82,0.08);border:1px solid rgba(224,82,82,0.25);color:#e08c8c;border-radius:6px;padding:8px 10px;font-size:12px;line-height:1.45;margin:0 0 12px;}
     .ppi-items{list-style:none;display:flex;flex-direction:column;gap:2px;}
     .ppi-item{display:flex;align-items:flex-start;gap:9px;padding:6px 8px;border-radius:6px;font-size:13px;line-height:1.45;color:var(--text2);cursor:pointer;}
     .ppi-item:hover{background:var(--bg3);}
@@ -3672,6 +3861,7 @@
         <div class="cal-detalle-estado-row">
           <span id="cal-detalle-estado" class="cal-badge-estado">—</span>
         </div>
+        <div id="cal-detalle-aviso-ppi"></div>
         <div id="cal-detalle-obs"></div>
         <div id="cal-detalle-certs"></div>
       </div>
