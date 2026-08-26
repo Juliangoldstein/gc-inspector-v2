@@ -321,6 +321,23 @@
       nombres.forEach(nombre => { CALIDAD_RUBRO_A_PPI[nombre] = slug; });
     });
 
+    // Mapeo PPI → Observaciones (superset de PPI_MAP_CALIDAD): a diferencia
+    // de PPI_MAP_CALIDAD, que solo lista rubros certificables (para gatear
+    // una certificación), acá entran también Losa/Columnas/Tabiques/Vigas —
+    // no tienen certificado propio, pero sí se cargan observaciones bajo
+    // "Estructura" y un defecto ahí queda igual de tapado si nadie lo mira.
+    // Lo usa exclusivamente el chequeo de "observaciones pendientes en
+    // rubros ancestros" (gate de Fase 3 en PPI + nota informativa en
+    // Calidad) — no se usa para gatear certificaciones, eso sigue siendo
+    // trabajo de PPI_MAP_CALIDAD. Metalúrgica/Replanteo/Terminaciones no
+    // tienen punto de PPI asociado y quedan afuera de este mecanismo.
+    const PPI_MAP_OBSERVACIONES = {
+      ...PPI_MAP_CALIDAD,
+      losa:     ['Estructura'],
+      columnas: ['Estructura'],
+      vigas:    ['Estructura'],
+    };
+
     // ─── CROQUIS DE CALIDAD ───────────────────────────────────────────────────
     // Cada croquis es un SVG con una forma por unidad (data-unidad="X") y las
     // etiquetas como trazados (tipografía Ailerons vectorizada). La app pinta
@@ -2241,6 +2258,34 @@
       return { estado: 'lista', puedeCertificar: true, obs, certs };
     }
 
+    // Nombres de Observaciones/Calidad de todo rubro ancestro (directo o
+    // indirecto, vía la cadena de PPI) de `rubroCalidad`. Es la versión
+    // Calidad de ppiObsPendientesAncestros: no bloquea nada — Fase 1 y Fase 2
+    // (Contrapiso incluido) no tienen gate de cierre — pero sirve para dejar
+    // asentada una nota informativa en el panel de detalle y el certificado.
+    // Si `rubroCalidad` no tiene punto de PPI asociado (hoy, Incendio), no
+    // hay cadena de la que tirar y no hay nada que anotar.
+    function rubrosObservablesAnteriores(rubroCalidad) {
+      const slug = CALIDAD_RUBRO_A_PPI[rubroCalidad];
+      const rubroPpi = slug && ppiRubroPorSlug(slug);
+      if (!rubroPpi) return [];
+      const nombres = new Set();
+      ppiAncestrosSlugs(rubroPpi).forEach(s =>
+        (PPI_MAP_OBSERVACIONES[s] || []).forEach(n => nombres.add(n)));
+      return [...nombres];
+    }
+
+    // Observaciones Pendientes en esta misma unidad para cualquier rubro
+    // ancestro de `rubro` — informativo, nunca condiciona puedeCertificar.
+    // Depto exacto, igual criterio que en PPI.
+    function observacionesPendientesRubrosAnteriores(bloqueCod, nivelCod, depto, rubro) {
+      const nombres = rubrosObservablesAnteriores(rubro);
+      if (!nombres.length) return [];
+      return calidadObs.filter(o =>
+        nombres.includes(o.rubro) && o.depto === depto &&
+        o.bloqueCod === bloqueCod && o.nivelCod === nivelCod && o.estado === 'Pendiente');
+    }
+
     const ESTADO_LABEL = {
       'sin-inspeccion': 'Sin inspección',
       'con-pendientes': 'Con pendientes',
@@ -2375,6 +2420,21 @@
       }
       document.getElementById('cal-detalle-aviso-ppi').innerHTML = avisoPpiHtml;
 
+      // Nota informativa: observaciones pendientes en rubros ancestros. Nunca
+      // condiciona el botón Certificar — es un aviso para que quede a la
+      // vista, no un gate (ver ppiBloqueo para el gate real de Fase 3).
+      const pendientesAnteriores = observacionesPendientesRubrosAnteriores(bloqueCod, nivelCod, depto, rubro);
+      let avisoPreviosHtml = '';
+      if (pendientesAnteriores.length) {
+        const porRubro = {};
+        pendientesAnteriores.forEach(o => { (porRubro[o.rubro] = porRubro[o.rubro] || []).push(o); });
+        const listado = Object.entries(porRubro).map(([r, obsList]) =>
+          `<li><strong>${escapeHtml(r)}</strong> — ${obsList.length} pendiente${obsList.length > 1 ? 's' : ''}: ${obsList.map(o => escapeHtml(o.numero || '—')).join(', ')}</li>`
+        ).join('');
+        avisoPreviosHtml = `<div class="cal-aviso-previos">⚠ Observaciones pendientes en rubros anteriores (informativo — no impide certificar):<ul>${listado}</ul></div>`;
+      }
+      document.getElementById('cal-detalle-aviso-previos').innerHTML = avisoPreviosHtml;
+
       // Observaciones
       let obsHtml = '';
       if (info.obs.length) {
@@ -2481,6 +2541,13 @@
         }));
         const sinObservaciones = obsCubiertas.length === 0;
 
+        // Snapshot informativo: observaciones pendientes en rubros ancestros
+        // al momento de emitir. Nunca bloqueó la certificación (eso es cosa
+        // del gate de Fase 3 en PPI) — solo queda asentado en el certificado
+        // como una foto fija, no se recalcula si después se resuelven.
+        const pendientesRubrosPrevios = observacionesPendientesRubrosAnteriores(bloqueCod, nivelCod, depto, rubro)
+          .map(o => ({ id: o.id, rubro: o.rubro, numero: o.numero || '', descripcion: o.descripcion || '' }));
+
         // Certificado anterior más reciente de esta celda (para la referencia)
         const certPrevio = info.certs.slice().sort((a,b) =>
           (a.numero||'').localeCompare(b.numero||'')).pop();
@@ -2492,7 +2559,7 @@
           nivelCod, nivelNombre: NIVELES[nivelCod] || nivelCod,
           depto, deptoNombre: etiquetaUnidad(depto),
           rubro, responsable,
-          obsCubiertas, sinObservaciones,
+          obsCubiertas, sinObservaciones, pendientesRubrosPrevios,
           certificadoAnteriorNumero: certPrevio?.numero || null,
           otorgadoPor: currentUser.uid,
           otorgadoPorNombre: currentUserData.nombre || currentUser.email,
@@ -2699,6 +2766,31 @@
         y = doc.lastAutoTable.finalY + 22;
       }
 
+      // ── OBSERVACIONES PENDIENTES EN RUBROS ANTERIORES (informativo) ─────────
+      // Foto fija del momento de emitir. Nunca bloqueó esta certificación —
+      // eso es cosa del gate de Fase 3 en PPI (ver ppiBloqueo) — pero queda
+      // asentado para que no se pierda de vista.
+      if (cert.pendientesRubrosPrevios && cert.pendientesRubrosPrevios.length) {
+        const porRubroPrevio = {};
+        cert.pendientesRubrosPrevios.forEach(o => { (porRubroPrevio[o.rubro] = porRubroPrevio[o.rubro] || []).push(o.numero || '-'); });
+        const lineasPrevio = Object.entries(porRubroPrevio).map(([r, nums]) =>
+          `${r} - ${nums.length} pendiente${nums.length > 1 ? 's' : ''}: ${nums.join(', ')}`);
+
+        doc.setFont(FUENTE, 'bold'); doc.setFontSize(7); doc.setTextColor(...C_LABEL);
+        conTracking(1.2, () => doc.text('OBSERVACIONES PENDIENTES EN RUBROS ANTERIORES (INFORMATIVO)', margen, y));
+        y += 14;
+
+        doc.setFont(FUENTE, 'normal'); doc.setFontSize(10); doc.setTextColor(...C_DARK);
+        const lineasPrevioEnvueltas = lineasPrevio.flatMap(l => doc.splitTextToSize('- ' + l, anchoUtil - 52));
+        const boxHPrevio = lineasPrevioEnvueltas.length * 16 + 34;
+        doc.setFillColor(...C_BLOQUE);
+        doc.rect(margen, y, anchoUtil, boxHPrevio, 'F');
+        doc.setFillColor(...C_ACENTO);
+        doc.rect(margen, y, 3.5, boxHPrevio, 'F');
+        doc.text(lineasPrevioEnvueltas, margen + 26, y + 24);
+        y += boxHPrevio + 22;
+      }
+
       // Certificado anterior (re-certificación)
       if (cert.certificadoAnteriorNumero) {
         doc.setFont(FUENTE, 'italic'); doc.setFontSize(9); doc.setTextColor(...C_LABEL);
@@ -2879,6 +2971,51 @@
       return RUBROS_PPI.filter(r => ppiRequisitosSlugsDe(r).includes(rubro.slug));
     }
 
+    // ─── Bloqueo por observaciones pendientes en rubros ancestros ───────────
+    // Ciertos rubros de Fase 3 (Terminaciones) tapan físicamente instalaciones
+    // o terminaciones de un rubro anterior — Yeso cierra la pared, Durlock un
+    // tabique, Cerámicos la impermeabilización, etc. Si un rubro ancestro (en
+    // cualquier punto de la cadena de PPI, no solo el inmediato anterior)
+    // todavía tiene una observación Pendiente en Calidad para esta misma
+    // unidad, no se debe ni empezar a inspeccionar el rubro de cierre: el
+    // defecto quedaría sepultado. Fase 1 y Fase 2 (Contrapiso incluido) no
+    // llevan este chequeo — son las instalaciones en sí; ahí una observación
+    // pendiente en un ancestro solo queda como nota informativa en Calidad
+    // (ver rubrosObservablesAnteriores, más abajo en el módulo de Calidad).
+    function ppiEsCierre(rubro) {
+      return rubro.fase === 3;
+    }
+
+    // Slugs de PPI ancestros de `rubro`, recorriendo toda la cadena de
+    // dependencias (no solo la inmediata) — ej. para Yeso incluye Contrapiso,
+    // Marcos y Gas, y subiendo: Electricidad, Plomería, Aire Acondicionado y
+    // Mampostería. `visto` evita repetir trabajo en los nodos compartidos por
+    // varias ramas (ej. Mampostería, ancestro de Marcos Y de Electricidad).
+    function ppiAncestrosSlugs(rubro, visto = new Set()) {
+      ppiRequisitosSlugsDe(rubro).forEach(slug => {
+        if (visto.has(slug)) return;
+        visto.add(slug);
+        const req = ppiRubroPorSlug(slug);
+        if (req) ppiAncestrosSlugs(req, visto);
+      });
+      return visto;
+    }
+
+    // Observaciones Pendientes de Calidad en `unidad` para cualquier rubro
+    // (certificable o no — ver PPI_MAP_OBSERVACIONES) que sea ancestro,
+    // directo o indirecto, de `rubro` en el PPI. Comparación de depto
+    // siempre exacta: una observación cargada como "General" no cuenta como
+    // pendiente para ninguna unidad puntual.
+    function ppiObsPendientesAncestros(bloque, nivel, unidad, rubro) {
+      const nombres = new Set();
+      ppiAncestrosSlugs(rubro).forEach(slug =>
+        (PPI_MAP_OBSERVACIONES[slug] || []).forEach(n => nombres.add(n)));
+      if (!nombres.size) return [];
+      return calidadObs.filter(o =>
+        nombres.has(o.rubro) && o.depto === unidad &&
+        o.bloqueCod === bloque && o.nivelCod === nivel && o.estado === 'Pendiente');
+    }
+
     // Devuelve null si el rubro se puede cargar, o el texto del/los motivo/s si
     // está bloqueado. Cada requisito se evalúa según cómo cruzan los ámbitos:
     //  · nivel → nivel/unidad: alcanza con el requisito aprobado en el nivel.
@@ -2907,6 +3044,18 @@
           if (faltan.length > 0) {
             motivos.push(`Requiere aprobar ${etiquetaReq} en todas las unidades del nivel. Faltan: ${faltan.map(etiquetaUnidad).join(', ')}.`);
           }
+        }
+      }
+      // Gate nuevo: rubros de Fase 3 exigen además que ningún ancestro (de
+      // toda la cadena, no solo el requisito directo) tenga observaciones
+      // Pendientes de Calidad sin resolver en esta misma unidad.
+      if (ppiEsCierre(rubro)) {
+        const pendientes = ppiObsPendientesAncestros(bloque, nivel, unidad, rubro);
+        if (pendientes.length) {
+          const porRubro = {};
+          pendientes.forEach(o => { (porRubro[o.rubro] = porRubro[o.rubro] || []).push(o.numero || '—'); });
+          const detalle = Object.entries(porRubro).map(([r, nums]) => `${r} (${nums.join(', ')})`).join('; ');
+          motivos.push(`Hay observaciones pendientes en rubros anteriores — ${detalle}. Hay que resolverlas antes de tapar con ${rubro.nombre}.`);
         }
       }
       return motivos.length === 0 ? null : motivos.join(' ');
@@ -3486,6 +3635,9 @@
     .ppi-fila-body{background:var(--bg);padding:2px 14px 12px 24px;}
     .ppi-aviso-bloqueo{background:rgba(224,82,82,0.08);border:1px solid rgba(224,82,82,0.25);color:#e08c8c;border-radius:6px;padding:8px 10px;font-size:12px;line-height:1.45;}
     .cal-aviso-ppi{background:rgba(224,82,82,0.08);border:1px solid rgba(224,82,82,0.25);color:#e08c8c;border-radius:6px;padding:8px 10px;font-size:12px;line-height:1.45;margin:0 0 12px;}
+    .cal-aviso-previos{background:rgba(200,169,110,0.08);border:1px solid rgba(200,169,110,0.3);color:var(--accent);border-radius:6px;padding:8px 10px;font-size:12px;line-height:1.45;margin:0 0 12px;}
+    .cal-aviso-previos ul{margin:6px 0 0;padding-left:18px;color:var(--text2);}
+    .cal-aviso-previos li{margin-bottom:2px;}
     .ppi-items{list-style:none;display:flex;flex-direction:column;gap:2px;}
     .ppi-item{display:flex;align-items:flex-start;gap:9px;padding:6px 8px;border-radius:6px;font-size:13px;line-height:1.45;color:var(--text2);cursor:pointer;}
     .ppi-item:hover{background:var(--bg3);}
@@ -3862,6 +4014,7 @@
           <span id="cal-detalle-estado" class="cal-badge-estado">—</span>
         </div>
         <div id="cal-detalle-aviso-ppi"></div>
+        <div id="cal-detalle-aviso-previos"></div>
         <div id="cal-detalle-obs"></div>
         <div id="cal-detalle-certs"></div>
       </div>
