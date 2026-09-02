@@ -2500,6 +2500,7 @@
       sel.appendChild(optOtro);
       document.getElementById('cal-cert-otro-wrap').classList.add('oculto');
       document.getElementById('cal-cert-otro').value = '';
+      document.getElementById('cal-cert-observacion').value = '';
       if (!empresas.length) {
         document.getElementById('cal-cert-aviso').textContent =
           'Este rubro no tiene empresas cargadas. Elegí "Otro" o cargalas desde el panel de empresas.';
@@ -2522,6 +2523,7 @@
         ? document.getElementById('cal-cert-otro').value.trim()
         : sel;
       if (!responsable) { alert('Elegí o especificá el responsable.'); return; }
+      const observacionInspector = document.getElementById('cal-cert-observacion').value.trim();
 
       const { bloqueCod, nivelCod, depto, rubro } = calidadUnidadSel;
       const info = estadoCelda(bloqueCod, nivelCod, depto, rubro);
@@ -2558,7 +2560,7 @@
           bloqueCod, bloqueNombre: BLOQUES[bloqueCod] || bloqueCod,
           nivelCod, nivelNombre: NIVELES[nivelCod] || nivelCod,
           depto, deptoNombre: etiquetaUnidad(depto),
-          rubro, responsable,
+          rubro, responsable, observacionInspector,
           obsCubiertas, sinObservaciones, pendientesRubrosPrevios,
           certificadoAnteriorNumero: certPrevio?.numero || null,
           otorgadoPor: currentUser.uid,
@@ -2657,7 +2659,8 @@
 
       // ── CABECERA ────────────────────────────────────────────────────────────
       // Asimétrica: la marca a la izquierda, la tarjeta del certificado a la derecha.
-      const ALTO_HEADER = 118;
+      // Layout compacto: el objetivo es que todo el certificado entre en una sola hoja.
+      const ALTO_HEADER = 96;
       doc.setFillColor(...C_DARK);
       doc.rect(0, 0, pageW, ALTO_HEADER, 'F');
       // Filete dorado al pie de la banda: el acento, muy sutil.
@@ -2666,39 +2669,39 @@
 
       // El logo ya es el logotipo de la marca (versión blanca, para fondo oscuro).
       if (logo) {
-        const altoLogo = 40;
+        const altoLogo = 32;
         doc.addImage(logo.dataURL, 'PNG', margen, (ALTO_HEADER - 2.5 - altoLogo) / 2,
           altoLogo * (logo.w / logo.h), altoLogo);
       }
 
       // Tarjeta del certificado: contorno dorado fino y código en monoespaciada.
-      const cardW = 156, cardH = 66;
+      const cardW = 150, cardH = 58;
       const cardX = pageW - margen - cardW, cardY = (ALTO_HEADER - 2.5 - cardH) / 2;
       doc.setDrawColor(...C_ACENTO); doc.setLineWidth(0.7);
       doc.roundedRect(cardX, cardY, cardW, cardH, 3, 3, 'S');
       doc.setFont(FUENTE, 'bold'); doc.setFontSize(6); doc.setTextColor(...C_ACENTO);
-      conTracking(1.1, () => doc.text('CERTIFICADO N°', cardX + 14, cardY + 18));
-      doc.setFont(MONO, 'bold'); doc.setFontSize(15); doc.setTextColor(255, 255, 255);
-      doc.text(cert.numero || '—', cardX + 14, cardY + 40);
-      doc.setFont(MONO, 'normal'); doc.setFontSize(8.5); doc.setTextColor(...C_TENUE);
-      doc.text(fecha, cardX + 14, cardY + 55);
+      conTracking(1.1, () => doc.text('CERTIFICADO N°', cardX + 13, cardY + 16));
+      doc.setFont(MONO, 'bold'); doc.setFontSize(13); doc.setTextColor(255, 255, 255);
+      doc.text(cert.numero || '—', cardX + 13, cardY + 35);
+      doc.setFont(MONO, 'normal'); doc.setFontSize(8); doc.setTextColor(...C_TENUE);
+      doc.text(fecha, cardX + 13, cardY + 48);
 
       // ── TÍTULO ──────────────────────────────────────────────────────────────
-      y = ALTO_HEADER + 58;
-      doc.setFont(FUENTE, 'bold'); doc.setFontSize(30); doc.setTextColor(...C_DARK);
-      conTracking(-0.9, () => doc.text('Certificado de Calidad', margen, y));
-      y += 19;
-      doc.setFont(FUENTE, 'italic'); doc.setFontSize(12); doc.setTextColor(...C_LABEL);
+      y = ALTO_HEADER + 38;
+      doc.setFont(FUENTE, 'bold'); doc.setFontSize(22); doc.setTextColor(...C_DARK);
+      conTracking(-0.7, () => doc.text('Certificado de Calidad', margen, y));
+      y += 15;
+      doc.setFont(FUENTE, 'italic'); doc.setFontSize(10.5); doc.setTextColor(...C_LABEL);
       doc.text(cert.obra || OBRA_NOMBRE, margen, y);
-      y += 16;
+      y += 13;
       doc.setFillColor(...C_ACENTO);
-      doc.rect(margen, y, 44, 2.5, 'F');   // regla corta de acento bajo el título
-      y += 34;
+      doc.rect(margen, y, 40, 2, 'F');   // regla corta de acento bajo el título
+      y += 24;
 
       // ── METADATOS ───────────────────────────────────────────────────────────
       // Grilla de 3 columnas sobre bloque gris ultra claro, divisores ultra finos.
       const colW = anchoUtil / 3;
-      const filaH = 54;
+      const filaH = 44;
       const gridH = filaH * 2;
       doc.setFillColor(...C_BLOQUE);
       doc.rect(margen, y, anchoUtil, gridH, 'F');
@@ -2711,44 +2714,61 @@
       // Etiqueta pequeña en gris medio + valor en negrita oscura.
       const celda = (label, valor, cx, cy, cw) => {
         doc.setFont(FUENTE, 'bold'); doc.setFontSize(6); doc.setTextColor(...C_LABEL);
-        conTracking(0.9, () => doc.text(label, cx + 16, cy + 21));
-        doc.setFont(FUENTE, 'bold'); doc.setFontSize(12); doc.setTextColor(...C_DARK);
-        const lineas = doc.splitTextToSize(String(valor || '—'), cw - 32);
-        doc.text(lineas[0], cx + 16, cy + 39);
+        conTracking(0.9, () => doc.text(label, cx + 14, cy + 17));
+        doc.setFont(FUENTE, 'bold'); doc.setFontSize(11); doc.setTextColor(...C_DARK);
+        const lineas = doc.splitTextToSize(String(valor || '—'), cw - 28);
+        doc.text(lineas[0], cx + 14, cy + 32);
       };
       celda('BLOQUE',         cert.bloqueNombre,                margen,            y,         colW);
       celda('NIVEL',          cert.nivelNombre,                 margen + colW,     y,         colW);
       celda('UNIDAD / DEPTO', cert.deptoNombre || cert.depto,   margen + colW * 2, y,         colW);
       celda('RUBRO',          cert.rubro,                       margen,            y + filaH, colW);
       celda('RESPONSABLE / SUBCONTRATISTA', cert.responsable,   margen + colW,     y + filaH, colW * 2);
-      y += gridH + 34;
+      y += gridH + 22;
 
       // ── DECLARACIÓN ─────────────────────────────────────────────────────────
       // Caja destacada con borde izquierdo grueso de acento: carácter oficial.
       const declaracion = `El presente documento certifica que no quedan observaciones pendientes a cargo de ${cert.responsable || '—'}.`;
-      doc.setFont(FUENTE, 'normal'); doc.setFontSize(11.5); doc.setTextColor(...C_DARK);
-      const lineasDecl = doc.splitTextToSize(declaracion, anchoUtil - 52);
-      const declH = lineasDecl.length * 16 + 34;
+      doc.setFont(FUENTE, 'normal'); doc.setFontSize(10.5); doc.setTextColor(...C_DARK);
+      const lineasDecl = doc.splitTextToSize(declaracion, anchoUtil - 48);
+      const declH = lineasDecl.length * 14 + 22;
       doc.setFillColor(...C_BLOQUE);
       doc.rect(margen, y, anchoUtil, declH, 'F');
       doc.setFillColor(...C_ACENTO);
-      doc.rect(margen, y, 3.5, declH, 'F');
-      doc.text(lineasDecl, margen + 26, y + 24);
-      y += declH + 36;
+      doc.rect(margen, y, 3, declH, 'F');
+      doc.text(lineasDecl, margen + 22, y + 17);
+      y += declH + 14;
+
+      // ── OBSERVACIÓN DEL INSPECTOR ───────────────────────────────────────────
+      // Comentario libre y opcional que el inspector carga al emitir el certificado.
+      if (cert.observacionInspector) {
+        doc.setFont(FUENTE, 'bold'); doc.setFontSize(7); doc.setTextColor(...C_LABEL);
+        conTracking(1.2, () => doc.text('OBSERVACIÓN DEL INSPECTOR', margen, y));
+        y += 12;
+        doc.setFont(FUENTE, 'italic'); doc.setFontSize(10); doc.setTextColor(...C_DARK);
+        const lineasObs = doc.splitTextToSize(cert.observacionInspector, anchoUtil - 48);
+        const obsH = lineasObs.length * 13 + 20;
+        doc.setFillColor(255, 253, 245);
+        doc.rect(margen, y, anchoUtil, obsH, 'F');
+        doc.setDrawColor(...C_ACENTO); doc.setLineWidth(0.7);
+        doc.rect(margen, y, 3, obsH, 'F');
+        doc.text(lineasObs, margen + 22, y + 16);
+        y += obsH + 14;
+      }
 
       // ── HISTORIAL DE OBSERVACIONES ──────────────────────────────────────────
       doc.setFont(FUENTE, 'bold'); doc.setFontSize(7); doc.setTextColor(...C_LABEL);
       conTracking(1.2, () => doc.text('HISTORIAL DE OBSERVACIONES', margen, y));
-      y += 6;
+      y += 5;
 
       if (cert.sinObservaciones) {
-        y += 18;
-        doc.setFont(FUENTE, 'italic'); doc.setFontSize(TAM_CUERPO); doc.setTextColor(...C_LABEL);
+        y += 15;
+        doc.setFont(FUENTE, 'italic'); doc.setFontSize(TAM_CUERPO - 1); doc.setTextColor(...C_LABEL);
         doc.text('La unidad fue inspeccionada y no presentó observaciones para este rubro.', margen, y);
-        y += 24;
+        y += 18;
       } else {
         doc.autoTable({
-          startY: y + 10,
+          startY: y + 8,
           head: [['N°', 'Descripción', 'Severidad', 'Creación', 'Resolución', 'Fecha res.']],
           body: (cert.obsCubiertas || []).map(o => [
             o.numero, o.descripcion, o.severidad, o.fechaCreacion,
@@ -2756,14 +2776,14 @@
           ]),
           margin: { left: margen, right: margen },
           theme: 'grid',
-          styles: { font: FUENTE, fontSize: 8, cellPadding: 6, valign: 'top',
+          styles: { font: FUENTE, fontSize: 7.5, cellPadding: 3, valign: 'top',
                     textColor: C_DARK, lineColor: C_BORDE, lineWidth: 0.5 },
-          headStyles: { font: FUENTE, fontStyle: 'bold', fontSize: 6.5, cellPadding: 6,
+          headStyles: { font: FUENTE, fontStyle: 'bold', fontSize: 6.5, cellPadding: 3,
                         fillColor: C_DARK, textColor: [255, 255, 255], lineWidth: 0 },
           alternateRowStyles: { fillColor: C_BLOQUE },
           columnStyles: { 1: { cellWidth: 148 }, 4: { cellWidth: 108 } },
         });
-        y = doc.lastAutoTable.finalY + 22;
+        y = doc.lastAutoTable.finalY + 14;
       }
 
       // ── OBSERVACIONES PENDIENTES EN RUBROS ANTERIORES (informativo) ─────────
@@ -2778,30 +2798,32 @@
 
         doc.setFont(FUENTE, 'bold'); doc.setFontSize(7); doc.setTextColor(...C_LABEL);
         conTracking(1.2, () => doc.text('OBSERVACIONES PENDIENTES EN RUBROS ANTERIORES (INFORMATIVO)', margen, y));
-        y += 14;
+        y += 12;
 
-        doc.setFont(FUENTE, 'normal'); doc.setFontSize(10); doc.setTextColor(...C_DARK);
-        const lineasPrevioEnvueltas = lineasPrevio.flatMap(l => doc.splitTextToSize('- ' + l, anchoUtil - 52));
-        const boxHPrevio = lineasPrevioEnvueltas.length * 16 + 34;
+        doc.setFont(FUENTE, 'normal'); doc.setFontSize(9.5); doc.setTextColor(...C_DARK);
+        const lineasPrevioEnvueltas = lineasPrevio.flatMap(l => doc.splitTextToSize('- ' + l, anchoUtil - 48));
+        const boxHPrevio = lineasPrevioEnvueltas.length * 14 + 22;
         doc.setFillColor(...C_BLOQUE);
         doc.rect(margen, y, anchoUtil, boxHPrevio, 'F');
         doc.setFillColor(...C_ACENTO);
-        doc.rect(margen, y, 3.5, boxHPrevio, 'F');
-        doc.text(lineasPrevioEnvueltas, margen + 26, y + 24);
-        y += boxHPrevio + 22;
+        doc.rect(margen, y, 3, boxHPrevio, 'F');
+        doc.text(lineasPrevioEnvueltas, margen + 22, y + 17);
+        y += boxHPrevio + 14;
       }
 
       // Certificado anterior (re-certificación)
       if (cert.certificadoAnteriorNumero) {
-        doc.setFont(FUENTE, 'italic'); doc.setFontSize(9); doc.setTextColor(...C_LABEL);
+        doc.setFont(FUENTE, 'italic'); doc.setFontSize(8.5); doc.setTextColor(...C_LABEL);
         doc.text(`Este certificado complementa al ${cert.certificadoAnteriorNumero} emitido previamente para esta unidad y rubro.`, margen, y);
-        y += 26;
+        y += 14;
       }
 
       // ── FIRMAS ──────────────────────────────────────────────────────────────
-      // Espacio generoso sobre las líneas para que la firma real tenga lugar.
-      let yPie = Math.max(y + 86, pageH - 152);
-      if (yPie > pageH - 118) { doc.addPage('a4', 'p'); yPie = pageH - 152; }
+      // Todo lo de arriba se comprimió justamente para que esto entre en la misma
+      // hoja; solo se pasa a una segunda página si el contenido realmente no entra
+      // (por ejemplo, un historial de observaciones muy largo).
+      let yPie = y + 44;
+      if (yPie > pageH - 106) { doc.addPage('a4', 'p'); yPie = 90; }
 
       const gapFirmas = 44;
       const anchoFirma = (anchoUtil - gapFirmas) / 2;
@@ -2810,13 +2832,13 @@
       doc.line(margen, yPie, margen + anchoFirma, yPie);
       doc.line(xFirmaDer, yPie, xFirmaDer + anchoFirma, yPie);
 
-      doc.setFont(FUENTE, 'bold'); doc.setFontSize(11); doc.setTextColor(...C_DARK);
-      doc.text(doc.splitTextToSize(cert.otorgadoPorNombre || '—', anchoFirma)[0], margen, yPie + 17);
-      doc.text(doc.splitTextToSize(cert.responsable || '—', anchoFirma)[0], xFirmaDer, yPie + 17);
+      doc.setFont(FUENTE, 'bold'); doc.setFontSize(10.5); doc.setTextColor(...C_DARK);
+      doc.text(doc.splitTextToSize(cert.otorgadoPorNombre || '—', anchoFirma)[0], margen, yPie + 16);
+      doc.text(doc.splitTextToSize(cert.responsable || '—', anchoFirma)[0], xFirmaDer, yPie + 16);
       doc.setFont(FUENTE, 'normal'); doc.setFontSize(6.5); doc.setTextColor(...C_LABEL);
       conTracking(0.9, () => {
-        doc.text('OTORGADO POR', margen, yPie + 30);
-        doc.text('RESPONSABLE / SUBCONTRATISTA', xFirmaDer, yPie + 30);
+        doc.text('OTORGADO POR', margen, yPie + 29);
+        doc.text('RESPONSABLE / SUBCONTRATISTA', xFirmaDer, yPie + 29);
       });
 
       // Pie de página fino
@@ -4065,6 +4087,10 @@
         <div id="cal-cert-otro-wrap" class="campo oculto">
           <label>Especificá el responsable</label>
           <input type="text" id="cal-cert-otro" placeholder="Nombre de la empresa / persona">
+        </div>
+        <div class="campo">
+          <label>Observación (opcional)</label>
+          <textarea id="cal-cert-observacion" placeholder="Comentario del inspector para incluir en el certificado…"></textarea>
         </div>
         <p id="cal-cert-aviso" style="font-size:12px;color:var(--text2);margin-top:4px"></p>
       </div>
