@@ -2159,6 +2159,7 @@
     let calidadObs = [];          // todas las observaciones
     let calidadCerts = [];        // todos los certificados
     let calidadPpi = [];          // todos los docs de la colección `ppi` (gate de certificación)
+    let calidadNoAplica = [];     // marcas manuales "No aplica" (colección `calidad_no_aplica`)
     let empresasCalidad = {};     // { rubro: [empresas] } desde config/empresas
     let calidadUnidadSel = null;  // { bloqueCod, nivelCod, depto } de la unidad tocada
 
@@ -2185,14 +2186,30 @@
 
     // ── Carga de datos para el cálculo de estados ──
     async function cargarDatosCalidad() {
-      const [obsSnap, certSnap, ppiSnap] = await Promise.all([
+      const [obsSnap, certSnap, ppiSnap, naSnap] = await Promise.all([
         getDocs(collection(db, 'observaciones')),
         getDocs(collection(db, 'certificados')),
         getDocs(collection(db, 'ppi')),
+        // Tolerante: si las reglas todavía no habilitan la colección nueva, Calidad
+        // sigue funcionando igual que antes (sin marcas de "No aplica").
+        getDocs(collection(db, 'calidad_no_aplica')).catch(e => { console.warn('calidad_no_aplica', e); return { docs: [] }; }),
       ]);
       calidadObs   = obsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
       calidadCerts = certSnap.docs.map(d => ({ id: d.id, ...d.data() }));
       calidadPpi   = ppiSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      calidadNoAplica = naSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    }
+
+    // ── "No aplica" en Calidad ──
+    // Es siempre una marca manual del inspector (doc en `calidad_no_aplica`), por
+    // unidad + rubro: p. ej. locales sin premarcos o sin Gas. Se marca y se revierte
+    // desde el panel de la unidad. Deja la celda en estado 'no-aplica': gris, sin
+    // gate de PPI y sin posibilidad de certificar.
+    function idNoAplica(bloqueCod, nivelCod, depto, rubro) {
+      return [bloqueCod, nivelCod, depto, rubro].join('__').replace(/\//g, '-');
+    }
+    function noAplicaManual(bloqueCod, nivelCod, depto, rubro) {
+      return calidadNoAplica.find(n => n.id === idNoAplica(bloqueCod, nivelCod, depto, rubro)) || null;
     }
 
     // Gate de PPI para una celda de Calidad: ¿el punto de PPI que controla
@@ -2223,6 +2240,12 @@
       const certs = calidadCerts.filter(c =>
         c.rubro === rubro && c.depto === depto &&
         c.bloqueCod === bloqueCod && c.nivelCod === nivelCod);
+
+      // "No aplica" pisa todo: la unidad directamente no lleva este rubro.
+      const naManual = noAplicaManual(bloqueCod, nivelCod, depto, rubro);
+      if (naManual) {
+        return { estado: 'no-aplica', puedeCertificar: false, obs, certs, naManual };
+      }
 
       const pendientes = obs.filter(o => o.estado === 'Pendiente');
       const resueltas  = obs.filter(o => o.estado === 'Resuelta');
@@ -2291,6 +2314,7 @@
       'con-pendientes': 'Con pendientes',
       'lista':          'Listo para certificar',
       'certificada':    'Certificado',
+      'no-aplica':      'No aplica',
     };
 
     // ── Pantalla Calidad ──
@@ -2409,9 +2433,25 @@
       badge.textContent = ESTADO_LABEL[info.estado];
       badge.className = 'cal-badge-estado estado-badge-' + info.estado;
 
+      // "No aplica": aviso de por qué + acción para marcar/revertir.
+      const btnNa = document.getElementById('cal-btn-noaplica');
+      const avisoNa = document.getElementById('cal-detalle-aviso-na');
+      let avisoNaHtml = '';
+      let naBtnTexto = '', naBtnModo = '';
+      if (info.estado === 'no-aplica') {
+        avisoNaHtml = `<div class="cal-aviso-na">Marcado como <strong>No aplica</strong>${info.naManual?.marcadoPorNombre ? ' por ' + escapeHtml(info.naManual.marcadoPorNombre) : ''}: esta unidad no lleva este rubro, no se certifica.</div>`;
+        naBtnTexto = 'Revertir "No aplica"'; naBtnModo = 'revertir';
+      } else if (!info.certs.length) {
+        naBtnTexto = 'Marcar como "No aplica"'; naBtnModo = 'marcar';
+      }
+      avisoNa.innerHTML = avisoNaHtml;
+      btnNa.textContent = naBtnTexto;
+      btnNa.dataset.modo = naBtnModo;
+      btnNa.classList.toggle('oculto', !naBtnModo || esLector);
+
       // Si el bloqueo es por PPI (no por falta de observaciones), lo decimos
       // explícito — si no, "Sin observaciones registradas" no explica nada.
-      const gate = ppiGateParaCelda(bloqueCod, nivelCod, depto, rubro);
+      const gate = info.estado === 'no-aplica' ? { aplica: false, liberado: true } : ppiGateParaCelda(bloqueCod, nivelCod, depto, rubro);
       let avisoPpiHtml = '';
       if (gate.aplica && !gate.liberado) {
         const slugPpi = CALIDAD_RUBRO_A_PPI[rubro];
@@ -2437,7 +2477,9 @@
 
       // Observaciones
       let obsHtml = '';
-      if (info.obs.length) {
+      if (info.estado === 'no-aplica' && !info.obs.length) {
+        obsHtml = '';
+      } else if (info.obs.length) {
         obsHtml = info.obs
           .sort((a,b) => (a.numero||'').localeCompare(b.numero||''))
           .map(o => `<div class="cal-obs-item ${o.estado==='Resuelta'?'res':'pend'}">
@@ -2479,6 +2521,43 @@
       document.getElementById('cal-detalle').classList.remove('oculto');
       document.getElementById('cal-detalle').classList.add('abierto');
     }
+
+    document.getElementById('cal-btn-noaplica').addEventListener('click', async () => {
+      if (!calidadUnidadSel || currentUserData?.rol === 'lector') return;
+      const btn = document.getElementById('cal-btn-noaplica');
+      const { bloqueCod, nivelCod, depto, rubro } = calidadUnidadSel;
+      const modo = btn.dataset.modo;
+      const info = estadoCelda(bloqueCod, nivelCod, depto, rubro);
+      const id = idNoAplica(bloqueCod, nivelCod, depto, rubro);
+      try {
+        btn.disabled = true;
+        if (modo === 'marcar') {
+          if (info.certs.length) { alert('Esta unidad ya tiene certificados emitidos para este rubro; no se puede marcar como No aplica.'); return; }
+          let msg = `¿Marcar ${etiquetaUnidad(depto)} como "No aplica" para ${rubro}? Deja de certificarse en este rubro.`;
+          if (info.obs.length) msg += `\n\nOjo: tiene ${info.obs.length} observación(es) cargada(s) en este rubro; quedan registradas pero no cuentan para certificar.`;
+          if (!confirm(msg)) return;
+          const datos = {
+            bloqueCod, nivelCod, depto, rubro,
+            marcadoPor: currentUser.uid,
+            marcadoPorNombre: currentUserData.nombre || currentUser.email,
+            marcadoEn: serverTimestamp(),
+          };
+          await setDoc(doc(db, 'calidad_no_aplica', id), datos);
+          calidadNoAplica = calidadNoAplica.filter(n => n.id !== id).concat([{ id, ...datos, marcadoEn: null }]);
+          mostrarToast('Marcado como No aplica');
+        } else if (modo === 'revertir') {
+          if (!confirm(`¿Revertir "No aplica" en ${etiquetaUnidad(depto)} · ${rubro}? Vuelve a evaluarse con el PPI y las observaciones.`)) return;
+          await deleteDoc(doc(db, 'calidad_no_aplica', id));
+          calidadNoAplica = calidadNoAplica.filter(n => n.id !== id);
+          mostrarToast('"No aplica" revertido');
+        } else return;
+        renderizarCroquisCalidad();
+        abrirDetalleUnidad(bloqueCod, nivelCod, depto, rubro);
+      } catch (e) {
+        console.error(e); alert('No se pudo guardar el cambio. Revisá permisos o conexión.');
+        registrarError('calidad_no_aplica', e, { bloqueCod, nivelCod, depto, rubro, modo });
+      } finally { btn.disabled = false; }
+    });
 
     document.getElementById('cal-detalle-cerrar').addEventListener('click', () => {
       document.getElementById('cal-detalle').classList.remove('abierto');
@@ -3685,6 +3764,7 @@
     .chip.estado-con-pendientes{background:#e8a33d;}
     .chip.estado-lista{background:#4aa3df;}
     .chip.estado-certificada{background:#2ecc71;}
+    .chip.estado-no-aplica{background:#9aa3b2;}
     .calidad-croquis{background:#fdfdfb;border:1px solid var(--border);border-radius:12px;padding:20px;min-height:300px;display:flex;align-items:center;justify-content:center;}
     .calidad-croquis svg{width:100%;height:auto;max-height:70vh;}
     .cal-placeholder{color:#7a8090;font-size:14px;text-align:center;line-height:1.6;}
@@ -3695,6 +3775,7 @@
     .calidad-croquis .unidad.estado-con-pendientes{fill:#e8a33d;}
     .calidad-croquis .unidad.estado-lista{fill:#4aa3df;}
     .calidad-croquis .unidad.estado-certificada{fill:#2ecc71;}
+    .calidad-croquis .unidad.estado-no-aplica{fill:#9aa3b2;}
     .calidad-croquis .unidad-etiqueta path{fill:#fff!important;}
 
     /* Panel detalle unidad (mismo patrón que panel-obs) */
@@ -3707,6 +3788,11 @@
     .estado-badge-con-pendientes{background:rgba(232,163,61,0.15);color:#e8a33d;}
     .estado-badge-lista{background:rgba(74,163,223,0.15);color:#4aa3df;}
     .estado-badge-certificada{background:rgba(46,204,113,0.15);color:#2ecc71;}
+    .estado-badge-no-aplica{background:rgba(154,163,178,0.18);color:#9aa3b2;}
+    .cal-aviso-na{background:rgba(154,163,178,0.1);border:1px solid rgba(154,163,178,0.3);color:var(--text2);border-radius:6px;padding:8px 10px;font-size:12px;line-height:1.45;margin:0 0 12px;}
+    #cal-btn-noaplica{background:transparent;color:var(--text2);border:1px solid var(--border);border-radius:6px;padding:6px 12px;font-size:12px;margin:10px 0 0;}
+    #cal-btn-noaplica:hover{background:var(--bg3);color:var(--text);}
+    #cal-btn-noaplica:disabled{opacity:.5;cursor:wait;}
     .cal-obs-item{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:8px;border-left:3px solid var(--border);}
     .cal-obs-item.pend{border-left-color:var(--pin-pend);}
     .cal-obs-item.res{border-left-color:var(--success);}
@@ -4016,6 +4102,7 @@
         <span><span class="chip estado-con-pendientes"></span>Con pendientes</span>
         <span><span class="chip estado-lista"></span>Listo para certificar</span>
         <span><span class="chip estado-certificada"></span>Certificado</span>
+        <span><span class="chip estado-no-aplica"></span>No aplica</span>
       </div>
       <div id="cal-croquis-cont" class="calidad-croquis">
         <div class="cal-placeholder">Elegí bloque, nivel y rubro para ver el croquis.</div>
@@ -4035,6 +4122,8 @@
         <div class="cal-detalle-estado-row">
           <span id="cal-detalle-estado" class="cal-badge-estado">—</span>
         </div>
+        <button id="cal-btn-noaplica" class="oculto" data-modo=""></button>
+        <div id="cal-detalle-aviso-na" style="margin-top:12px"></div>
         <div id="cal-detalle-aviso-ppi"></div>
         <div id="cal-detalle-aviso-previos"></div>
         <div id="cal-detalle-obs"></div>
