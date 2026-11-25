@@ -2386,6 +2386,7 @@
       calidadCerts = certSnap.docs.map(d => ({ id: d.id, ...d.data() }));
       calidadPpi   = ppiSnap.docs.map(d => ({ id: d.id, ...d.data() }));
       calidadNoAplica = naSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      onCambioFiltroCerts(); // la Lista de certificados se alimenta de calidadCerts
     }
 
     // ── "No aplica" en Calidad ──
@@ -2560,6 +2561,113 @@
       btn.disabled = false;
       mostrarToast('Datos actualizados');
     });
+
+    // ── Sección "Lista de certificados" (solo lectura) ──
+    // Lista los certificados ya emitidos (calidadCerts, que se refresca al entrar a
+    // Calidad y con ↻ Actualizar) con filtros por rubro, responsable, edificio, nivel
+    // y depto. No escribe nada. El PDF se regenera con generarPDFCertificado.
+    const FILTROS_CERTS = [
+      { id: 'fc-rubro',       valor: c => c.rubro || '',       etiqueta: v => v },
+      { id: 'fc-responsable', valor: c => c.responsable || '', etiqueta: v => v },
+      { id: 'fc-bloque',      valor: c => c.bloqueCod || '',   etiqueta: v => BLOQUES[v] || v },
+      { id: 'fc-nivel',       valor: c => c.nivelCod || '',    etiqueta: v => NIVELES[v] || `Piso ${parseInt(v, 10)}` },
+      { id: 'fc-depto',       valor: c => c.depto || '',       etiqueta: v => etiquetaUnidad(v) },
+    ];
+
+    // Certificados que cumplen los filtros activos, salvo el del select `excluirId`
+    // (filtros "conectados": cada select ofrece lo que queda según los otros).
+    function certsFiltrados(excluirId) {
+      const activos = FILTROS_CERTS
+        .filter(f => f.id !== excluirId)
+        .map(f => ({ f, v: document.getElementById(f.id).value }))
+        .filter(x => x.v);
+      return calidadCerts.filter(c => activos.every(({ f, v }) => f.valor(c) === v));
+    }
+
+    function actualizarFiltrosCerts() {
+      FILTROS_CERTS.forEach(f => {
+        const sel = document.getElementById(f.id);
+        const actual = sel.value;
+        const valores = [...new Set(certsFiltrados(f.id).map(f.valor).filter(Boolean))];
+        if (actual && !valores.includes(actual)) valores.push(actual);
+        if (f.id === 'fc-nivel') {
+          const pos = v => { const i = ORDEN_NIVELES.indexOf(NIVELES[v]); return i === -1 ? 999 : i; };
+          valores.sort((a, b) => pos(a) - pos(b));
+        } else {
+          valores.sort((a, b) => f.etiqueta(a).localeCompare(f.etiqueta(b), 'es', { numeric: true }));
+        }
+        sel.innerHTML = '<option value="">Todos</option>' +
+          valores.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(f.etiqueta(v))}</option>`).join('');
+        sel.value = actual;
+      });
+    }
+
+    function renderizarListaCerts() {
+      const cont = document.getElementById('lista-certs');
+      // Más nuevos primero: es un registro de documentos emitidos
+      const certs = certsFiltrados(null).sort((a, b) => (b.numero || '').localeCompare(a.numero || '', 'es', { numeric: true }));
+      const hayFiltro = FILTROS_CERTS.some(f => document.getElementById(f.id).value);
+      document.getElementById('cert-g-resumen').textContent =
+        `${certs.length} certificado${certs.length !== 1 ? 's' : ''}` + (hayFiltro ? ` (de ${calidadCerts.length} en total)` : '');
+
+      if (certs.length === 0) {
+        cont.innerHTML = `<div class="empty-state"><div class="empty-icon">📄</div><p>${hayFiltro ? 'No hay certificados con esos filtros.' : 'Todavía no se emitió ningún certificado.'}</p></div>`;
+        return;
+      }
+      const celda = (etiqueta, html) => `<div class="obs-g-celda" data-l="${etiqueta}">${html}</div>`;
+      const filas = certs.map(c => {
+        const n = (c.obsCubiertas || []).length;
+        const detalle = (c.sinObservaciones || n === 0) ? 'Sin observaciones' : `${n} ${n !== 1 ? 'observaciones cubiertas' : 'observación cubierta'}`;
+        const nota = c.observacionInspector ? ` · ${c.observacionInspector}` : '';
+        return `<div class="obs-g-fila cert-g">
+          ${celda('ID', `<span class="obs-g-id">${escapeHtml(c.numero || '—')}</span>`)}
+          ${celda('Rubro', escapeHtml(c.rubro || '—'))}
+          ${celda('Responsable', escapeHtml(c.responsable || '—'))}
+          ${celda('Edificio', escapeHtml(BLOQUES[c.bloqueCod] || c.bloqueCod || '—'))}
+          ${celda('Nivel', escapeHtml(NIVELES[c.nivelCod] || c.nivelCod || '—'))}
+          ${celda('Depto.', escapeHtml(c.depto ? etiquetaUnidad(c.depto) : '—'))}
+          ${celda('Fecha', escapeHtml(c.fecha?.toDate?.()?.toLocaleDateString('es-AR') || '—'))}
+          ${celda('', `<button class="cert-g-pdf" data-cert="${escapeHtml(c.id)}">PDF</button>`)}
+          <div class="obs-g-desc">${escapeHtml(detalle + nota)}</div>
+        </div>`;
+      }).join('');
+      cont.innerHTML = `<div class="obs-g-fila obs-g-encabezado cert-g"><div>ID</div><div>Rubro</div><div>Responsable</div><div>Edificio</div><div>Nivel</div><div>Depto.</div><div>Fecha</div><div></div></div>` + filas;
+    }
+
+    function onCambioFiltroCerts() { actualizarFiltrosCerts(); renderizarListaCerts(); }
+    FILTROS_CERTS.forEach(f => document.getElementById(f.id).addEventListener('change', onCambioFiltroCerts));
+    document.getElementById('fc-limpiar').addEventListener('click', () => {
+      FILTROS_CERTS.forEach(f => { document.getElementById(f.id).value = ''; });
+      onCambioFiltroCerts();
+    });
+    document.getElementById('lista-certs').addEventListener('click', async e => {
+      const b = e.target.closest('.cert-g-pdf');
+      if (!b) return;
+      const cert = calidadCerts.find(c => c.id === b.dataset.cert);
+      if (!cert) return;
+      b.disabled = true;
+      try { await generarPDFCertificado(cert); }
+      catch (err) { console.error(err); alert('Error al generar el PDF del certificado.'); registrarError('pdf_certificado', err); }
+      finally { b.disabled = false; }
+    });
+
+    // Pestañas de Calidad: "Emitir certificado" / "Lista de certificados"
+    function mostrarSeccionCalidad(seccion) {
+      document.getElementById('cal-seccion-emitir').classList.toggle('oculto', seccion !== 'emitir');
+      document.getElementById('cal-seccion-lista').classList.toggle('oculto', seccion !== 'lista');
+      document.querySelectorAll('.cal-tab').forEach(b => {
+        const activa = b.dataset.calSeccion === seccion;
+        b.classList.toggle('activa', activa);
+        b.setAttribute('aria-selected', activa);
+      });
+      if (seccion === 'lista') {
+        // El panel de detalle de unidad pertenece al croquis: si quedó abierto, se cierra
+        if (!document.getElementById('cal-detalle').classList.contains('oculto')) document.getElementById('cal-detalle-cerrar').click();
+        onCambioFiltroCerts();
+      }
+    }
+    document.querySelectorAll('.cal-tab').forEach(b =>
+      b.addEventListener('click', () => mostrarSeccionCalidad(b.dataset.calSeccion)));
 
     function renderizarCroquisCalidad() {
       const bloque = document.getElementById('cal-bloque').value;
@@ -3746,11 +3854,17 @@
     .empty-icon{font-size:48px;margin-bottom:16px;}.empty-state p{margin-bottom:6px;line-height:1.5;}
 
     /* Gestión de observaciones: pestañas Planos / Observaciones */
-    .gestion-tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:20px;}
-    .gestion-tab{background:transparent;color:var(--text2);padding:10px 18px;font-size:13px;font-weight:600;border-bottom:2px solid transparent;margin-bottom:-1px;border-radius:var(--radius-sm) var(--radius-sm) 0 0;}
-    .gestion-tab:hover{color:var(--text);background:var(--bg2);}
-    .gestion-tab.activa{color:var(--accent);border-bottom-color:var(--accent);}
+    .gestion-tabs,.cal-tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:20px;}
+    .gestion-tab,.cal-tab{background:transparent;color:var(--text2);padding:10px 18px;font-size:13px;font-weight:600;border-bottom:2px solid transparent;margin-bottom:-1px;border-radius:var(--radius-sm) var(--radius-sm) 0 0;}
+    .gestion-tab:hover,.cal-tab:hover{color:var(--text);background:var(--bg2);}
+    .gestion-tab.activa,.cal-tab.activa{color:var(--accent);border-bottom-color:var(--accent);}
 
+    .cal-tabs{margin-bottom:0;}
+    #cal-seccion-emitir,#cal-seccion-lista{display:flex;flex-direction:column;gap:16px;}
+    /* Lista de certificados (reutiliza las filas del listado de observaciones) */
+    .obs-g-fila.cert-g{grid-template-columns:84px minmax(110px,1fr) minmax(140px,1.4fr) 84px 96px 84px 90px 64px;}
+    .cert-g-pdf{background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px 10px;font-size:11px;font-weight:600;}
+    .cert-g-pdf:hover{border-color:var(--accent);color:var(--accent);}
     /* Listado global de observaciones */
     .obs-g-lista{display:flex;flex-direction:column;gap:6px;}
     .obs-g-fila{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;display:grid;grid-template-columns:84px minmax(180px,2fr) minmax(110px,1fr) minmax(120px,1fr) 84px 96px 84px 92px;gap:4px 12px;align-items:center;font-size:12px;transition:border-color var(--trans);}
@@ -3768,6 +3882,7 @@
       .obs-g-fila{grid-template-columns:1fr 1fr;}
       .obs-g-celda::before{display:block;content:attr(data-l);font-size:9px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:0.4px;}
       .obs-g-plano{grid-column:1 / -1;}
+      .obs-g-fila.cert-g{grid-template-columns:1fr 1fr;}
     }
     /* Pin resaltado al llegar desde el listado de observaciones */
     .pin-destacado{z-index:5;animation:pin-pulso 1.2s ease-out 3;}
@@ -4333,6 +4448,13 @@
       </div>
     </header>
     <div class="calidad-body">
+      <!-- Dos secciones: Emitir certificado (croquis, lo de siempre) y Lista de
+           certificados (solo lectura, con filtros). -->
+      <div class="cal-tabs" role="tablist">
+        <button id="cal-tab-emitir" class="cal-tab activa" data-cal-seccion="emitir" role="tab">📝 Emitir certificado</button>
+        <button id="cal-tab-lista" class="cal-tab" data-cal-seccion="lista" role="tab">📄 Lista de certificados</button>
+      </div>
+      <div id="cal-seccion-emitir">
       <div class="calidad-selectores">
         <div class="campo-filtro"><label>Bloque</label>
           <select id="cal-bloque"><option value="">— Bloque —</option><option value="T">Torre</option><option value="B">Basamento</option></select>
@@ -4354,6 +4476,24 @@
       </div>
       <div id="cal-croquis-cont" class="calidad-croquis">
         <div class="cal-placeholder">Elegí bloque, nivel y rubro para ver el croquis.</div>
+      </div>
+      </div>
+
+      <div id="cal-seccion-lista" class="oculto">
+        <div class="planos-header">
+          <div><h2>Certificados emitidos</h2><p id="cert-g-resumen">Cargando…</p></div>
+        </div>
+        <div class="filtros-bar">
+          <div class="filtros-selects">
+            <div class="campo-filtro"><label>Rubro</label><select id="fc-rubro"><option value="">Todos</option></select></div>
+            <div class="campo-filtro"><label>Responsable</label><select id="fc-responsable"><option value="">Todos</option></select></div>
+            <div class="campo-filtro"><label>Edificio</label><select id="fc-bloque"><option value="">Todos</option></select></div>
+            <div class="campo-filtro"><label>Nivel</label><select id="fc-nivel"><option value="">Todos</option></select></div>
+            <div class="campo-filtro"><label>Depto.</label><select id="fc-depto"><option value="">Todos</option></select></div>
+            <button id="fc-limpiar" class="btn-limpiar">✕ Limpiar</button>
+          </div>
+        </div>
+        <div id="lista-certs" class="obs-g-lista"></div>
       </div>
     </div>
 
