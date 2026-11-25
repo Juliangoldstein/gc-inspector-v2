@@ -863,6 +863,8 @@
       pestañas.clear();
       pestañaActiva = null;
       if (planosUnsubscribe) planosUnsubscribe();
+      if (obsGlobalUnsubscribe) { obsGlobalUnsubscribe(); obsGlobalUnsubscribe = null; }
+      todasLasObs = []; obsGlobalLista = false;
       if (ppiUnsubscribe) { ppiUnsubscribe(); ppiUnsubscribe = null; }
       await signOut(auth);
     }));
@@ -1078,6 +1080,8 @@
       planosUnsubscribe = onSnapshot(query(collection(db,'planos'), orderBy('creadoEn','desc')), snap => {
         todosLosPlanos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         onCambioFiltro();
+        // El listado de observaciones resuelve el nombre del plano con esta lista
+        if (obsGlobalUnsubscribe) renderizarListaObsGestion();
       });
     }
 
@@ -1285,6 +1289,189 @@
       });
       const plano = { id: docRef.id, nombre: nombreOriginal, nombreOriginal, dropboxPath: archivo.path_lower, paginas: 1, ...meta };
       abrirPlano(plano);
+    }
+
+    // ─── GESTIÓN DE OBSERVACIONES — SECCIÓN "OBSERVACIONES" ───────────────────
+    // Listado global (todos los planos) con filtros por rubro, responsable,
+    // edificio, nivel y depto. Es una vista de solo lectura sobre la colección
+    // `observaciones`: no escribe nada ni toca las suscripciones por plano del
+    // visor. Cada fila muestra el ID (numero) y el plano como link: al clickear
+    // se abre el plano en la página de la observación, con el pin resaltado.
+    let todasLasObs = [];            // cache local de TODAS las observaciones
+    let obsGlobalUnsubscribe = null; // se suscribe la primera vez que se abre la sección
+    let obsGlobalLista = false;      // true una vez que llegó el primer snapshot (evita parpadear "sin observaciones")
+
+    // Cada filtro: id del <select>, cómo sacar el valor de la obs y cómo mostrarlo.
+    // Edificio y nivel se filtran por código (bloqueCod / nivelCod) y se muestran con su nombre.
+    const FILTROS_OBS = [
+      { id: 'fo-rubro',       valor: o => o.rubro || '',       etiqueta: v => v },
+      { id: 'fo-responsable', valor: o => o.responsable || '', etiqueta: v => v },
+      { id: 'fo-bloque',      valor: o => o.bloqueCod || '',   etiqueta: v => BLOQUES[v] || v },
+      { id: 'fo-nivel',       valor: o => o.nivelCod || '',    etiqueta: v => NIVELES[v] || `Piso ${parseInt(v, 10)}` },
+      { id: 'fo-depto',       valor: o => o.depto || '',       etiqueta: v => etiquetaUnidad(v) },
+    ];
+
+    // Obs que cumplen todos los filtros activos, salvo el del select `excluirId`
+    // (así cada select ofrece las opciones que quedan según los otros: filtros "conectados").
+    function obsFiltradas(excluirId) {
+      const activos = FILTROS_OBS
+        .filter(f => f.id !== excluirId)
+        .map(f => ({ f, v: document.getElementById(f.id).value }))
+        .filter(x => x.v);
+      return todasLasObs.filter(o => activos.every(({ f, v }) => f.valor(o) === v));
+    }
+
+    function ordenarOpcionesObs(filtro, valores) {
+      if (filtro.id === 'fo-nivel') {
+        const pos = v => { const i = ORDEN_NIVELES.indexOf(NIVELES[v]); return i === -1 ? 999 : i; };
+        return valores.sort((a, b) => pos(a) - pos(b));
+      }
+      return valores.sort((a, b) => filtro.etiqueta(a).localeCompare(filtro.etiqueta(b), 'es', { numeric: true }));
+    }
+
+    function actualizarFiltrosObsGestion() {
+      FILTROS_OBS.forEach(f => {
+        const sel = document.getElementById(f.id);
+        const actual = sel.value;
+        const valores = [...new Set(obsFiltradas(f.id).map(f.valor).filter(Boolean))];
+        // Si el valor elegido ya no sale de las otras combinaciones, se conserva igual
+        // (la lista queda vacía y el usuario ve por qué, en vez de que el filtro se resetee solo).
+        if (actual && !valores.includes(actual)) valores.push(actual);
+        ordenarOpcionesObs(f, valores);
+        sel.innerHTML = '<option value="">Todos</option>' +
+          valores.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(f.etiqueta(v))}</option>`).join('');
+        sel.value = actual;
+      });
+    }
+
+    function renderizarListaObsGestion() {
+      if (!obsGlobalLista) return;
+      const cont    = document.getElementById('lista-obs-gestion');
+      const resumen = document.getElementById('obs-gestion-resumen');
+      const obs = obsFiltradas(null).sort((a, b) => (a.numero || '').localeCompare(b.numero || '', 'es', { numeric: true }));
+      const hayFiltro = FILTROS_OBS.some(f => document.getElementById(f.id).value);
+      const pend = obs.filter(o => o.estado === 'Pendiente').length;
+      resumen.textContent = `${obs.length} ${obs.length !== 1 ? 'observaciones' : 'observación'} · ${pend} pendiente${pend !== 1 ? 's' : ''}` +
+        (hayFiltro ? ` (de ${todasLasObs.length} en total)` : '');
+
+      if (obs.length === 0) {
+        cont.innerHTML = `<div class="empty-state"><div class="empty-icon">📋</div><p>${hayFiltro ? 'No hay observaciones con esos filtros.' : 'Todavía no hay observaciones cargadas.'}</p></div>`;
+        return;
+      }
+
+      const planosPorId = new Map(todosLosPlanos.map(p => [p.id, p]));
+      const celda = (etiqueta, html, clase = '') => `<div class="obs-g-celda ${clase}" data-l="${etiqueta}">${html}</div>`;
+      const filas = obs.map(o => {
+        const plano = planosPorId.get(o.planoId);
+        const linkPlano = plano
+          ? `<a href="#" class="obs-g-link" data-obs="${escapeHtml(o.id)}" title="Ver la observación en el plano">${escapeHtml(plano.nombre)}${o.pagina > 1 ? ' · pág. ' + escapeHtml(o.pagina) : ''}</a>`
+          : '<span class="obs-g-sinplano">Plano no disponible</span>';
+        const deptoTxt = o.depto && o.depto !== 'General' ? etiquetaUnidad(o.depto) : (o.depto || '—');
+        return `<div class="obs-g-fila">
+          ${celda('ID', `<span class="obs-g-id">${escapeHtml(o.numero || '—')}</span>`)}
+          ${celda('Plano', linkPlano, 'obs-g-plano')}
+          ${celda('Rubro', escapeHtml(o.rubro || '—'))}
+          ${celda('Responsable', escapeHtml(o.responsable || '—'))}
+          ${celda('Edificio', escapeHtml(BLOQUES[o.bloqueCod] || o.bloqueCod || '—'))}
+          ${celda('Nivel', escapeHtml(NIVELES[o.nivelCod] || o.nivelCod || '—'))}
+          ${celda('Depto.', escapeHtml(deptoTxt))}
+          ${celda('Estado', `<span class="badge-estado ${o.estado === 'Resuelta' ? 'badge-resuelta' : 'badge-pendiente'}">${escapeHtml(o.estado || 'Pendiente')}</span>`)}
+          <div class="obs-g-desc">${escapeHtml(o.descripcion || '')}</div>
+        </div>`;
+      }).join('');
+
+      cont.innerHTML = `<div class="obs-g-fila obs-g-encabezado"><div>ID</div><div>Plano</div><div>Rubro</div><div>Responsable</div><div>Edificio</div><div>Nivel</div><div>Depto.</div><div>Estado</div></div>` + filas;
+    }
+
+    function onCambioFiltroObs() { actualizarFiltrosObsGestion(); renderizarListaObsGestion(); }
+    FILTROS_OBS.forEach(f => document.getElementById(f.id).addEventListener('change', onCambioFiltroObs));
+    document.getElementById('fo-limpiar').addEventListener('click', () => {
+      FILTROS_OBS.forEach(f => { document.getElementById(f.id).value = ''; });
+      onCambioFiltroObs();
+    });
+
+    function iniciarListadoObsGestion() {
+      if (obsGlobalUnsubscribe) { onCambioFiltroObs(); return; }
+      document.getElementById('lista-obs-gestion').innerHTML = '<div class="loading">Cargando observaciones...</div>';
+      obsGlobalUnsubscribe = onSnapshot(collection(db, 'observaciones'), snap => {
+        todasLasObs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        obsGlobalLista = true;
+        onCambioFiltroObs();
+      }, err => {
+        console.error(err);
+        registrarError('listado_observaciones', err);
+        obsGlobalUnsubscribe = null; // permite reintentar al volver a abrir la sección
+        obsGlobalLista = false;
+        document.getElementById('lista-obs-gestion').innerHTML = '<div class="empty-state"><div class="empty-icon">⚠️</div><p>No se pudieron cargar las observaciones.</p></div>';
+      });
+    }
+
+    // Pestañas de la pantalla: "Planos de obra" (lo de siempre) y "Observaciones"
+    function mostrarSeccionGestion(seccion) {
+      document.getElementById('seccion-planos').classList.toggle('oculto', seccion !== 'planos');
+      document.getElementById('seccion-observaciones').classList.toggle('oculto', seccion !== 'obs');
+      document.querySelectorAll('.gestion-tab').forEach(b => {
+        const activa = b.dataset.seccion === seccion;
+        b.classList.toggle('activa', activa);
+        b.setAttribute('aria-selected', activa);
+      });
+      if (seccion === 'obs') iniciarListadoObsGestion();
+    }
+    document.querySelectorAll('.gestion-tab').forEach(b =>
+      b.addEventListener('click', () => mostrarSeccionGestion(b.dataset.seccion)));
+
+    // Click en el plano de una fila → abrir el plano en la página de la obs y resaltarla
+    document.getElementById('lista-obs-gestion').addEventListener('click', e => {
+      const link = e.target.closest('.obs-g-link');
+      if (!link) return;
+      e.preventDefault();
+      const obs = todasLasObs.find(o => o.id === link.dataset.obs);
+      if (obs) irAObservacion(obs);
+    });
+
+    let obsDestacadaTimer = null;
+    async function irAObservacion(obs) {
+      const plano = todosLosPlanos.find(p => p.id === obs.planoId);
+      if (!plano) { mostrarToast('El plano de esta observación ya no está disponible'); return; }
+
+      // abrirPlano NO espera a activarPestaña cuando el plano ya está abierto, así que
+      // en ese caso la llamamos nosotros para poder esperar a que termine de renderizar.
+      if (pestañas.has(plano.id)) await activarPestaña(plano.id);
+      else await abrirPlano(plano);
+      const est = pestañas.get(plano.id);
+      if (!est) return; // tope de pestañas abiertas: abrirPlano ya avisó
+
+      // Si el plano ya estaba abierto, activarPestaña restaura el scroll guardado con un
+      // setTimeout de 50ms; esperamos a que pase para que no pise el centrado de abajo.
+      await new Promise(r => setTimeout(r, 120));
+      if (pestañaActiva !== plano.id) return; // el usuario cambió de pestaña mientras tanto
+
+      // En un plano recién abierto, las obs llegan por el onSnapshot de la pestaña
+      // (normalmente antes de que termine de bajar el PDF). Esperamos un poco por si falta.
+      for (let i = 0; i < 40 && !est.observaciones[obs.id]; i++) await new Promise(r => setTimeout(r, 100));
+      const o = est.observaciones[obs.id];
+      if (!o) { mostrarToast('No se encontró la observación en el plano (¿se eliminó?)'); return; }
+
+      if (est.pdfDoc && o.pagina && est.pagina !== o.pagina && o.pagina <= est.pdfDoc.numPages) {
+        est.pagina = o.pagina;
+        await renderizarPagina(est, est.pagina, true);
+        actualizarNavegacionPaginas(est);
+      }
+
+      est.obsDestacada = o.id;
+      renderizarMarcadores();
+      const pin = document.querySelector('#marcadores-overlay .pin-destacado');
+      if (pin) {
+        const area = document.getElementById('pdf-area');
+        const a = area.getBoundingClientRect(), p = pin.getBoundingClientRect();
+        area.scrollLeft += (p.left + p.width / 2) - (a.left + a.width / 2);
+        area.scrollTop  += (p.top  + p.height / 2) - (a.top  + a.height / 2);
+      }
+      clearTimeout(obsDestacadaTimer);
+      obsDestacadaTimer = setTimeout(() => {
+        if (est.obsDestacada === o.id) est.obsDestacada = null;
+        document.querySelectorAll('.pin-destacado').forEach(el => el.classList.remove('pin-destacado'));
+      }, 4500);
     }
 
     // ─── INSPECTOR — SISTEMA DE PESTAÑAS ──────────────────────────────────────
@@ -1600,6 +1787,7 @@
       Object.values(est.observaciones).filter(o=>o.pagina===est.pagina).forEach(obs => {
         const pin = document.createElement('div');
         pin.className  = `pin ${obs.estado==='Resuelta'?'pin-resuelta':'pin-pendiente'}`;
+        if (est.obsDestacada === obs.id) pin.classList.add('pin-destacado'); // llegada desde el listado de observaciones
         pin.style.left = (obs.x*canvas.width)+'px';
         pin.style.top  = (obs.y*canvas.height)+'px';
         const numeroCorto = (obs.numero||'?').replace(/^OBS-0*/,'') || '0';
@@ -3557,6 +3745,37 @@
     .empty-state{text-align:center;padding:60px 20px;color:var(--text2);}
     .empty-icon{font-size:48px;margin-bottom:16px;}.empty-state p{margin-bottom:6px;line-height:1.5;}
 
+    /* Gestión de observaciones: pestañas Planos / Observaciones */
+    .gestion-tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:20px;}
+    .gestion-tab{background:transparent;color:var(--text2);padding:10px 18px;font-size:13px;font-weight:600;border-bottom:2px solid transparent;margin-bottom:-1px;border-radius:var(--radius-sm) var(--radius-sm) 0 0;}
+    .gestion-tab:hover{color:var(--text);background:var(--bg2);}
+    .gestion-tab.activa{color:var(--accent);border-bottom-color:var(--accent);}
+
+    /* Listado global de observaciones */
+    .obs-g-lista{display:flex;flex-direction:column;gap:6px;}
+    .obs-g-fila{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;display:grid;grid-template-columns:84px minmax(180px,2fr) minmax(110px,1fr) minmax(120px,1fr) 84px 96px 84px 92px;gap:4px 12px;align-items:center;font-size:12px;transition:border-color var(--trans);}
+    .obs-g-fila:hover{border-color:var(--accent);}
+    .obs-g-encabezado{background:transparent;border:none;padding:0 14px;font-size:10px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:0.4px;}
+    .obs-g-encabezado:hover{border-color:transparent;}
+    .obs-g-id{font-weight:700;color:var(--accent2);}
+    .obs-g-link{color:var(--accent);text-decoration:underline;text-underline-offset:2px;font-weight:600;word-break:break-word;}
+    .obs-g-link:hover{color:var(--accent2);}
+    .obs-g-sinplano{color:var(--text2);font-style:italic;}
+    .obs-g-desc{grid-column:1 / -1;color:var(--text2);font-size:12px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}
+    .obs-g-celda::before{display:none;}
+    @media(max-width:900px){
+      .obs-g-encabezado{display:none;}
+      .obs-g-fila{grid-template-columns:1fr 1fr;}
+      .obs-g-celda::before{display:block;content:attr(data-l);font-size:9px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:0.4px;}
+      .obs-g-plano{grid-column:1 / -1;}
+    }
+    /* Pin resaltado al llegar desde el listado de observaciones */
+    .pin-destacado{z-index:5;animation:pin-pulso 1.2s ease-out 3;}
+    @keyframes pin-pulso{
+      0%{box-shadow:0 0 0 0 rgba(200,169,110,0.95),0 2px 8px rgba(0,0,0,0.4);}
+      100%{box-shadow:0 0 0 28px rgba(200,169,110,0),0 2px 8px rgba(0,0,0,0.4);}
+    }
+
     #pantalla-inspector{height:100vh;display:flex;flex-direction:column;}
     .inspector-header{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 16px;height:56px;display:flex;align-items:center;gap:12px;flex-shrink:0;}
     /* Ícono de trazo como los del home (.home-card-icono) con el fondo de
@@ -3926,23 +4145,52 @@
       </div>
     </header>
     <div class="planos-body">
-      <div class="planos-header">
-        <div><h2>Planos de obra</h2><p>Seleccioná un plano para inspeccionar</p></div>
-        <button id="btn-agregar-plano" class="btn-primary">+ Agregar plano</button>
+      <!-- Dos secciones dentro de la gestión de observaciones:
+           · Planos de obra: donde se marcan las observaciones (lo de siempre)
+           · Observaciones: listado global con filtros, cada fila linkea a su plano -->
+      <div class="gestion-tabs" role="tablist">
+        <button id="tab-gestion-planos" class="gestion-tab activa" data-seccion="planos" role="tab">📐 Nueva observación</button>
+        <button id="tab-gestion-obs" class="gestion-tab" data-seccion="obs" role="tab">📋 Observaciones existentes</button>
       </div>
 
-      <div class="filtros-bar">
-        <input type="text" id="filtro-busqueda" placeholder="🔍 Buscar plano..." class="filtro-busqueda">
-        <div class="filtros-selects">
-          <div class="campo-filtro"><label>Disciplina</label><select id="filtro-disciplina"><option value="">Todos</option></select></div>
-          <div class="campo-filtro"><label>Nivel</label><select id="filtro-nivel"><option value="">Todos</option></select></div>
-          <div class="campo-filtro"><label>Bloque</label><select id="filtro-bloque"><option value="">Todos</option></select></div>
-          <div class="campo-filtro"><label>Depto.</label><select id="filtro-depto"><option value="">Todos</option></select></div>
-          <button id="btn-limpiar-filtros" class="btn-limpiar">✕ Limpiar</button>
+      <div id="seccion-planos">
+        <div class="planos-header">
+          <div><h2>Planos de obra</h2><p>Seleccioná un plano para inspeccionar</p></div>
+          <button id="btn-agregar-plano" class="btn-primary">+ Agregar plano</button>
         </div>
+
+        <div class="filtros-bar">
+          <input type="text" id="filtro-busqueda" placeholder="🔍 Buscar plano..." class="filtro-busqueda">
+          <div class="filtros-selects">
+            <div class="campo-filtro"><label>Disciplina</label><select id="filtro-disciplina"><option value="">Todos</option></select></div>
+            <div class="campo-filtro"><label>Nivel</label><select id="filtro-nivel"><option value="">Todos</option></select></div>
+            <div class="campo-filtro"><label>Bloque</label><select id="filtro-bloque"><option value="">Todos</option></select></div>
+            <div class="campo-filtro"><label>Depto.</label><select id="filtro-depto"><option value="">Todos</option></select></div>
+            <button id="btn-limpiar-filtros" class="btn-limpiar">✕ Limpiar</button>
+          </div>
+        </div>
+
+        <div id="lista-planos" class="lista-planos"></div>
       </div>
 
-      <div id="lista-planos" class="lista-planos"></div>
+      <div id="seccion-observaciones" class="oculto">
+        <div class="planos-header">
+          <div><h2>Observaciones</h2><p id="obs-gestion-resumen">Cargando…</p></div>
+        </div>
+
+        <div class="filtros-bar">
+          <div class="filtros-selects">
+            <div class="campo-filtro"><label>Rubro</label><select id="fo-rubro"><option value="">Todos</option></select></div>
+            <div class="campo-filtro"><label>Responsable</label><select id="fo-responsable"><option value="">Todos</option></select></div>
+            <div class="campo-filtro"><label>Edificio</label><select id="fo-bloque"><option value="">Todos</option></select></div>
+            <div class="campo-filtro"><label>Nivel</label><select id="fo-nivel"><option value="">Todos</option></select></div>
+            <div class="campo-filtro"><label>Depto.</label><select id="fo-depto"><option value="">Todos</option></select></div>
+            <button id="fo-limpiar" class="btn-limpiar">✕ Limpiar</button>
+          </div>
+        </div>
+
+        <div id="lista-obs-gestion" class="obs-g-lista"></div>
+      </div>
     </div>
   </div>
 
