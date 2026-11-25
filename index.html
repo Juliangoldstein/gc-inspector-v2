@@ -1054,6 +1054,9 @@
       // Migraciones de datos legacy — corren una sola vez (ver flag de versión).
       ejecutarMigracionesSiHaceFalta();
 
+      // Empresas por rubro (para el campo Empresa de las observaciones y la herramienta de asignación)
+      cargarEmpresas().then(actualizarBotonAsignarEmpresas);
+
       cargarListaPlanos();
     }
 
@@ -1305,7 +1308,7 @@
     // Edificio y nivel se filtran por código (bloqueCod / nivelCod) y se muestran con su nombre.
     const FILTROS_OBS = [
       { id: 'fo-rubro',       valor: o => o.rubro || '',       etiqueta: v => v },
-      { id: 'fo-responsable', valor: o => o.responsable || '', etiqueta: v => v },
+      { id: 'fo-responsable', valor: o => o.empresa || o.responsable || '', etiqueta: v => v },
       { id: 'fo-bloque',      valor: o => o.bloqueCod || '',   etiqueta: v => BLOQUES[v] || v },
       { id: 'fo-nivel',       valor: o => o.nivelCod || '',    etiqueta: v => NIVELES[v] || `Piso ${parseInt(v, 10)}` },
       { id: 'fo-depto',       valor: o => o.depto || '',       etiqueta: v => etiquetaUnidad(v) },
@@ -1371,7 +1374,7 @@
           ${celda('ID', `<span class="obs-g-id">${escapeHtml(o.numero || '—')}</span>`)}
           ${celda('Plano', linkPlano, 'obs-g-plano')}
           ${celda('Rubro', escapeHtml(o.rubro || '—'))}
-          ${celda('Responsable', escapeHtml(o.responsable || '—'))}
+          ${celda('Responsable', escapeHtml(o.empresa || o.responsable || '—'))}
           ${celda('Edificio', escapeHtml(BLOQUES[o.bloqueCod] || o.bloqueCod || '—'))}
           ${celda('Nivel', escapeHtml(NIVELES[o.nivelCod] || o.nivelCod || '—'))}
           ${celda('Depto.', escapeHtml(deptoTxt))}
@@ -1397,6 +1400,7 @@
         todasLasObs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         obsGlobalLista = true;
         onCambioFiltroObs();
+        actualizarBotonAsignarEmpresas();
       }, err => {
         console.error(err);
         registrarError('listado_observaciones', err);
@@ -1405,6 +1409,59 @@
         document.getElementById('lista-obs-gestion').innerHTML = '<div class="empty-state"><div class="empty-icon">⚠️</div><p>No se pudieron cargar las observaciones.</p></div>';
       });
     }
+
+
+    // ── Herramienta admin: asignar empresa a observaciones viejas ──
+    // Las observaciones anteriores al campo `empresa` solo tienen `responsable` genérico
+    // ("Electricista"). Acá el admin elige, por rubro, qué empresa las hizo. Solo toca la
+    // clave `empresa` de las que no la tienen (no pisa nada ni marca para re-sincronizar al Sheet).
+    function obsSinEmpresa() {
+      return todasLasObs.filter(o => !o.empresa && (empresasCalidad[o.rubro] || []).length);
+    }
+    function actualizarBotonAsignarEmpresas() {
+      const btn = document.getElementById('obs-btn-asignar-empresas');
+      btn.classList.toggle('oculto', !(currentUserData?.rol === 'admin' && obsSinEmpresa().length));
+    }
+    document.getElementById('obs-btn-asignar-empresas').addEventListener('click', () => {
+      const porRubro = {};
+      obsSinEmpresa().forEach(o => { porRubro[o.rubro] = (porRubro[o.rubro] || 0) + 1; });
+      document.getElementById('asignar-emp-lista').innerHTML = Object.keys(porRubro).sort((a,b)=>a.localeCompare(b,'es')).map(r => {
+        const emps = (empresasCalidad[r] || []).slice().sort((a,b)=>a.localeCompare(b,'es'));
+        const unica = emps.length === 1 ? emps[0] : '';
+        return `<div class="empresa-rubro" style="display:flex;align-items:center;gap:12px;justify-content:space-between">
+          <div><div class="empresa-rubro-titulo" style="margin:0">${escapeHtml(r)}</div><div style="font-size:11px;color:var(--text2)">${porRubro[r]} observaci${porRubro[r] !== 1 ? 'ones' : 'ón'} sin empresa</div></div>
+          <select data-rubro="${escapeHtml(r)}" style="width:220px">
+            <option value="">— No asignar —</option>
+            ${emps.map(e => `<option value="${escapeHtml(e)}"${e === unica ? ' selected' : ''}>${escapeHtml(e)}</option>`).join('')}
+          </select></div>`;
+      }).join('');
+      document.getElementById('modal-asignar-empresas').classList.remove('oculto');
+    });
+    document.getElementById('asignar-emp-cerrar').addEventListener('click', () =>
+      document.getElementById('modal-asignar-empresas').classList.add('oculto'));
+    document.getElementById('asignar-emp-aplicar').addEventListener('click', async () => {
+      if (currentUserData?.rol !== 'admin') return;
+      const elegido = {};
+      document.querySelectorAll('#asignar-emp-lista select').forEach(sel => { if (sel.value) elegido[sel.dataset.rubro] = sel.value; });
+      const pendientes = obsSinEmpresa().filter(o => elegido[o.rubro]);
+      if (!pendientes.length) { mostrarToast('No elegiste ninguna empresa'); return; }
+      const resumen = Object.entries(elegido).map(([r, e]) => `${r} → ${e}`).join('\n');
+      if (!confirm(`Se van a completar ${pendientes.length} observaciones:\n\n${resumen}\n\n¿Continuar?`)) return;
+      const btn = document.getElementById('asignar-emp-aplicar');
+      btn.disabled = true; btn.textContent = 'Aplicando…';
+      try {
+        for (let i = 0; i < pendientes.length; i += 400) {       // el batch admite hasta 500 escrituras
+          const batch = writeBatch(db);
+          pendientes.slice(i, i + 400).forEach(o => batch.update(doc(db, 'observaciones', o.id), { empresa: elegido[o.rubro] }));
+          await batch.commit();
+        }
+        document.getElementById('modal-asignar-empresas').classList.add('oculto');
+        mostrarToast(`✓ Empresa asignada en ${pendientes.length} observaciones`);
+      } catch (e) {
+        console.error(e); alert('Error al asignar las empresas. Revisá cuántas se completaron y volvé a intentar.');
+        registrarError('asignar_empresas_obs', e);
+      } finally { btn.disabled = false; btn.textContent = 'Aplicar'; }
+    });
 
     // Pestañas de la pantalla: "Planos de obra" (lo de siempre) y "Observaciones"
     function mostrarSeccionGestion(seccion) {
@@ -1901,6 +1958,7 @@
       }
       document.getElementById('obs-rubro').value=obs.rubro||'';
       actualizarResponsables(obs.rubro);
+      actualizarEmpresasObs(obs.rubro, obs.empresa || '');
       // Restaurar el responsable. Si se guardó vía "Otro" (texto libre), no va a
       // figurar entre las opciones del select: en ese caso seleccionamos "Otro" y
       // volcamos el valor al campo de texto, para no perderlo al reabrir/guardar.
@@ -1927,13 +1985,13 @@
         document.getElementById('btn-eliminar-obs').classList.add('oculto');
         document.getElementById('btn-guardar-obs').classList.add('oculto');
         document.getElementById('panel-obs').classList.add('modo-lectura');
-        ['obs-rubro','obs-responsable','obs-responsable-otro-texto','obs-descripcion','obs-severidad','obs-estado','obs-nota'].forEach(id=>{document.getElementById(id).disabled=true;});
+        ['obs-rubro','obs-empresa','obs-responsable','obs-responsable-otro-texto','obs-descripcion','obs-severidad','obs-estado','obs-nota'].forEach(id=>{document.getElementById(id).disabled=true;});
         document.getElementById('obs-foto').disabled=true;
       } else {
         document.getElementById('btn-eliminar-obs').classList.remove('oculto');
         document.getElementById('btn-guardar-obs').classList.remove('oculto');
         document.getElementById('panel-obs').classList.remove('modo-lectura');
-        ['obs-rubro','obs-responsable','obs-responsable-otro-texto','obs-descripcion','obs-severidad','obs-estado','obs-nota'].forEach(id=>{document.getElementById(id).disabled=false;});
+        ['obs-rubro','obs-empresa','obs-responsable','obs-responsable-otro-texto','obs-descripcion','obs-severidad','obs-estado','obs-nota'].forEach(id=>{document.getElementById(id).disabled=false;});
         document.getElementById('obs-foto').disabled=false;
       }
       // Después del bloque lector/no-lector: poblarSelectDepto decide por sí
@@ -2002,11 +2060,26 @@
       document.getElementById('btn-eliminar-foto').classList.add('oculto');
       document.getElementById('obs-foto').value=''; document.getElementById('obs-x').value=''; document.getElementById('obs-y').value='';
       document.getElementById('obs-responsable-otro').classList.add('oculto');
+      actualizarEmpresasObs('', '');
     }
 
     const rubroSelect = document.getElementById('obs-rubro');
     RUBROS.forEach(r=>{const o=document.createElement('option');o.value=r;o.textContent=r;rubroSelect.appendChild(o);});
-    rubroSelect.addEventListener('change', ()=>actualizarResponsables(rubroSelect.value));
+    rubroSelect.addEventListener('change', ()=>{ actualizarResponsables(rubroSelect.value); actualizarEmpresasObs(rubroSelect.value, ''); });
+    // Empresa de la observación: se elige de las empresas del rubro (config/empresas, la misma
+    // lista que usa Calidad). Si el rubro tiene una sola, queda preseleccionada. `responsable`
+    // (Electricista, Jefe de obra…) NO se toca: viaja al Sheet y a los informes.
+    // `valorActual`: undefined = conservar lo elegido; '' = reiniciar.
+    function actualizarEmpresasObs(rubro, valorActual) {
+      const sel = document.getElementById('obs-empresa');
+      const prev = valorActual !== undefined ? valorActual : sel.value;
+      const lista = (empresasCalidad[rubro] || []).slice().sort((a,b)=>a.localeCompare(b,'es'));
+      sel.innerHTML = '<option value="">' + (!rubro ? '— Seleccioná rubro primero —' : lista.length ? '— Seleccioná —' : 'Sin empresas para este rubro') + '</option>';
+      lista.forEach(e => { const o = document.createElement('option'); o.value = e; o.textContent = e; sel.appendChild(o); });
+      // Empresa guardada que ya no figura en la lista del rubro: se conserva como opción
+      if (prev && !lista.includes(prev)) { const o = document.createElement('option'); o.value = prev; o.textContent = prev + ' (histórico)'; sel.appendChild(o); }
+      if (prev) sel.value = prev; else if (lista.length === 1) sel.value = lista[0];
+    }
     function actualizarResponsables(rubro) {
       const sel=document.getElementById('obs-responsable'); const lista=RESPONSABLES[rubro]||['Jefe de obra','Otro']; const prev=sel.value;
       sel.innerHTML='<option value="">— Seleccioná —</option>';
@@ -2047,6 +2120,7 @@
       const est = pestañaActual(); if (!est) return;
       const rubro=document.getElementById('obs-rubro').value;
       const responsable=document.getElementById('obs-responsable').value==='Otro'?document.getElementById('obs-responsable-otro-texto').value:document.getElementById('obs-responsable').value;
+      const empresa=document.getElementById('obs-empresa').value;
       const descripcion=document.getElementById('obs-descripcion').value.trim();
       const severidad=document.getElementById('obs-severidad').value;
       const estado=document.getElementById('obs-estado').value;
@@ -2055,6 +2129,7 @@
       const x=parseFloat(document.getElementById('obs-x').value);
       const y=parseFloat(document.getElementById('obs-y').value);
       if(!rubro||!descripcion){alert('Completá al menos el rubro y la descripción.');return;}
+      if((empresasCalidad[rubro]||[]).length>1&&!empresa){alert('Elegí la empresa de este rubro.');return;}
       const btn=document.getElementById('btn-guardar-obs');btn.disabled=true;btn.textContent='Guardando...';
       try {
         const fotoInput = document.getElementById('obs-foto');
@@ -2076,7 +2151,7 @@
         fotoInput.dataset.eliminada = '';
         if(est.obsSeleccionada){
           const estadoPrevio=est.observaciones[est.obsSeleccionada]?.estado;
-          const data={rubro,responsable,descripcion,severidad,estado,depto,notaResolucion:nota,fotoUrl,actualizadoEn:serverTimestamp(),sincronizadoSheet:false};
+          const data={rubro,empresa,responsable,descripcion,severidad,estado,depto,notaResolucion:nota,fotoUrl,actualizadoEn:serverTimestamp(),sincronizadoSheet:false};
           if(estado==='Resuelta'){
             // Registrar la fecha de resolución solo al pasar A Resuelta; si ya estaba
             // resuelta no la pisamos (conserva la fecha original de resolución).
@@ -2093,7 +2168,7 @@
           // bloqueCod/nivelCod se copian del plano para que el módulo de Calidad
           // pueda ubicar la obs en la celda correcta (el depto solo no alcanza: hay
           // "A" en seis pisos distintos).
-          await addDoc(collection(db,'observaciones'),{planoId:est.plano.id,numero,pagina:est.pagina,x,y,depto,bloqueCod:est.plano.bloqueCod||'',nivelCod:est.plano.nivelCod||'',rubro,responsable,descripcion,severidad,estado:'Pendiente',notaResolucion:'',fotoUrl,creadoPor:currentUser.uid,creadoEn:serverTimestamp(),resueltaEn:null,sincronizadoSheet:false});
+          await addDoc(collection(db,'observaciones'),{planoId:est.plano.id,numero,pagina:est.pagina,x,y,depto,bloqueCod:est.plano.bloqueCod||'',nivelCod:est.plano.nivelCod||'',rubro,empresa,responsable,descripcion,severidad,estado:'Pendiente',notaResolucion:'',fotoUrl,creadoPor:currentUser.uid,creadoEn:serverTimestamp(),resueltaEn:null,sincronizadoSheet:false});
         }
         cerrarPanel();
       } catch(e){console.error(e);alert('Error al guardar.');registrarError('guardar_observacion', e, {planoId: est.plano.id});}
@@ -4291,6 +4366,7 @@
       <div id="seccion-observaciones" class="oculto">
         <div class="planos-header">
           <div><h2>Observaciones</h2><p id="obs-gestion-resumen">Cargando…</p></div>
+          <button id="obs-btn-asignar-empresas" class="btn-secondary oculto" title="Hay observaciones sin empresa asignada">🏢 Asignar empresas</button>
         </div>
 
         <div class="filtros-bar">
@@ -4410,6 +4486,7 @@
           <input type="hidden" id="obs-x"><input type="hidden" id="obs-y">
           <div class="campo"><label>Depto / Unidad</label><select id="obs-depto"></select></div>
           <div class="campo"><label>Rubro *</label><select id="obs-rubro"><option value="">— Seleccioná —</option></select></div>
+          <div class="campo"><label>Empresa</label><select id="obs-empresa"><option value="">— Seleccioná rubro primero —</option></select></div>
           <div class="campo"><label>Responsable</label><select id="obs-responsable"><option value="">— Seleccioná rubro primero —</option></select></div>
           <div id="obs-responsable-otro" class="campo oculto"><label>Especificá el responsable</label><input type="text" id="obs-responsable-otro-texto" placeholder="Nombre del responsable"></div>
           <div class="campo"><label>Descripción *</label><textarea id="obs-descripcion" placeholder="Describí la observación..."></textarea></div>
@@ -4582,6 +4659,17 @@
     <div class="modal" style="width:520px;max-height:85vh">
       <div class="modal-header"><h3>Empresas por rubro</h3><button id="cal-empresas-cerrar" class="btn-cerrar-modal">✕</button></div>
       <div class="modal-body"><div id="lista-empresas"></div></div>
+    </div>
+  </div>
+
+  <div id="modal-asignar-empresas" class="modal-overlay oculto">
+    <div class="modal" style="width:560px;max-height:85vh">
+      <div class="modal-header"><h3>Asignar empresa a observaciones</h3><button id="asignar-emp-cerrar" class="btn-cerrar-modal">✕</button></div>
+      <div class="modal-body">
+        <p style="font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:12px">Estas observaciones todavía no tienen empresa. Elegí, por rubro, qué empresa las hizo. Solo se completan las que no tienen empresa: no se pisa ninguna ya asignada.</p>
+        <div id="asignar-emp-lista"></div>
+        <button id="asignar-emp-aplicar" class="btn-primary" style="margin-top:14px;width:100%">Aplicar</button>
+      </div>
     </div>
   </div>
 
