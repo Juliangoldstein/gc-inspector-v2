@@ -38,7 +38,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-    import { getAuth, signInWithPopup, signOut, GoogleAuthProvider, onAuthStateChanged }
+    import { getAuth, signInWithPopup, signOut, GoogleAuthProvider, onAuthStateChanged, signInWithEmailAndPassword, sendPasswordResetEmail }
       from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
     import { getFirestore, collection, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc,
       query, where, orderBy, onSnapshot, serverTimestamp, getDocs, runTransaction, writeBatch }
@@ -835,10 +835,37 @@
       if (currentUserData.rol === 'lector') document.getElementById('btn-agregar-plano').classList.add('oculto');
       // El nombre del usuario se muestra en el home
       document.getElementById('home-user-nombre').textContent = currentUserData.nombre || currentUser.email;
+      aplicarModoSegunRol();
       mostrar('home');
       // Sembrar empresas de calidad en Firestore si es la primera vez (solo admin)
       sembrarEmpresasSiFalta().catch(e => console.warn('Seed empresas:', e));
     });
+
+    // Subcontratista: usuario externo de solo lectura. Ve solo sus observaciones y sus certificados.
+    // Esto es la parte visual: la restricción real la hacen las reglas de Firestore.
+    // Se aplica en CADA login (en la misma pestaña puede entrar otro rol tras cerrar sesión).
+    const HOME_TEXTOS = {
+      normal: { insp: ['Gestión de observaciones', 'Marcá nuevas observaciones en planos y revisá el historial de cada unidad.'],
+                cal:  ['Certificado de calidad', 'Emisión del certificado final por unidad y rubro inspeccionado.'] },
+      sub:    { insp: ['Observaciones', 'Las observaciones de tus rubros: estado, ubicación y descripción.'],
+                cal:  ['Certificados de calidad', 'Los certificados que se emitieron a tu empresa.'] },
+    };
+    function esSubcontratista() { return currentUserData?.rol === 'subcontratista'; }
+    function aplicarModoSegunRol() {
+      const sub = esSubcontratista();
+      const t = HOME_TEXTOS[sub ? 'sub' : 'normal'];
+      document.getElementById('btn-home-ppi').classList.toggle('oculto', sub);
+      document.getElementById('home-insp-titulo').textContent = t.insp[0];
+      document.getElementById('home-insp-desc').textContent   = t.insp[1];
+      document.getElementById('home-cal-titulo').textContent  = t.cal[0];
+      document.getElementById('home-cal-desc').textContent    = t.cal[1];
+      document.querySelector('#pantalla-planos .gestion-tabs').classList.toggle('oculto', sub);
+      document.querySelector('#pantalla-calidad .cal-tabs').classList.toggle('oculto', sub);
+      // Botones por rol: se recalculan en cada login (si no, quedan los del usuario anterior en la misma pestaña)
+      document.getElementById('btn-usuarios').style.display = currentUserData?.rol === 'admin' ? 'block' : 'none';
+      document.getElementById('btn-agregar-plano').classList.toggle('oculto', sub || currentUserData?.rol === 'lector');
+      if (!sub) { mostrarSeccionGestion('planos'); mostrarSeccionCalidad('emitir'); }
+    }
 
     // Botones del home
     document.getElementById('btn-home-inspeccionar').addEventListener('click', () => {
@@ -854,6 +881,34 @@
       iniciarPantallaPPI();
     });
 
+    // Login con email y contraseña (cuentas que crea el admin, p. ej. subcontratistas sin Gmail)
+    function mostrarMensajeLogin(texto, ok = false) {
+      const m = document.getElementById('login-mensaje');
+      m.textContent = texto; m.classList.toggle('ok', ok); m.classList.remove('oculto');
+    }
+    document.getElementById('form-login-email').addEventListener('submit', async e => {
+      e.preventDefault();
+      document.getElementById('login-mensaje').classList.add('oculto');
+      const btn = document.getElementById('btn-login-email'); btn.disabled = true;
+      try {
+        await signInWithEmailAndPassword(auth, document.getElementById('login-email').value.trim(), document.getElementById('login-password').value);
+      } catch (ex) {
+        console.error(ex);
+        const credenciales = ['auth/invalid-credential','auth/wrong-password','auth/user-not-found','auth/invalid-email'];
+        mostrarMensajeLogin(credenciales.includes(ex.code) ? 'Email o contraseña incorrectos.'
+          : ex.code === 'auth/too-many-requests' ? 'Demasiados intentos. Esperá unos minutos y probá de nuevo.'
+          : ex.code === 'auth/operation-not-allowed' ? 'El ingreso con email no está habilitado.'
+          : 'No se pudo iniciar sesión. Probá de nuevo.');
+      } finally { btn.disabled = false; }
+    });
+    document.getElementById('btn-reset-password').addEventListener('click', async () => {
+      const email = document.getElementById('login-email').value.trim();
+      if (!email) { mostrarMensajeLogin('Escribí tu email arriba y volvé a tocar "Olvidé mi contraseña".'); return; }
+      try { await sendPasswordResetEmail(auth, email); } catch (ex) { console.warn('reset password', ex); }
+      // Mismo mensaje exista o no la cuenta: no revela qué emails están registrados
+      mostrarMensajeLogin('Si ese email tiene una cuenta, te enviamos un enlace para elegir una contraseña nueva. Revisá también el spam.', true);
+    });
+
     document.getElementById('btn-login').addEventListener('click', async () => {
       try { await signInWithPopup(auth, provider); } catch (e) { console.error(e); alert('Error al iniciar sesión.'); }
     });
@@ -864,7 +919,7 @@
       pestañaActiva = null;
       if (planosUnsubscribe) planosUnsubscribe();
       if (obsGlobalUnsubscribe) { obsGlobalUnsubscribe(); obsGlobalUnsubscribe = null; }
-      todasLasObs = []; obsGlobalLista = false;
+      todasLasObs = []; obsGlobalLista = false; planosPedidos.clear(); todosLosPlanos = [];
       if (ppiUnsubscribe) { ppiUnsubscribe(); ppiUnsubscribe = null; }
       await signOut(auth);
     }));
@@ -1042,6 +1097,10 @@
       document.getElementById('user-nombre').textContent = currentUserData.nombre || currentUser.email;
       document.getElementById('user-email').textContent = currentUser.email;
       if (currentUser.photoURL) document.getElementById('user-avatar').src = currentUser.photoURL;
+
+      // Subcontratista: solo el listado de sus observaciones (sin lista de planos, sin
+      // migraciones, sin token de Dropbox, sin config de empresas)
+      if (esSubcontratista()) { mostrarSeccionGestion('obs'); return; }
 
       // Precalentar el token de Dropbox en segundo plano. La primera llamada paga el
       // cold start de la Cloud Function (~2.5s); pidiéndolo ahora, mientras el
@@ -1358,7 +1417,7 @@
         (hayFiltro ? ` (de ${todasLasObs.length} en total)` : '');
 
       if (obs.length === 0) {
-        cont.innerHTML = `<div class="empty-state"><div class="empty-icon">📋</div><p>${hayFiltro ? 'No hay observaciones con esos filtros.' : 'Todavía no hay observaciones cargadas.'}</p></div>`;
+        cont.innerHTML = `<div class="empty-state"><div class="empty-icon">📋</div><p>${hayFiltro ? 'No hay observaciones con esos filtros.' : esSubcontratista() ? 'No hay observaciones a nombre de tu empresa.' : 'Todavía no hay observaciones cargadas.'}</p></div>`;
         return;
       }
 
@@ -1366,7 +1425,10 @@
       const celda = (etiqueta, html, clase = '') => `<div class="obs-g-celda ${clase}" data-l="${etiqueta}">${html}</div>`;
       const filas = obs.map(o => {
         const plano = planosPorId.get(o.planoId);
-        const linkPlano = plano
+        // Subcontratista: por ahora ve el nombre del plano sin link (el visor usa el token general de Dropbox)
+        const linkPlano = plano && esSubcontratista()
+          ? `<span class="obs-g-plano-txt">${escapeHtml(plano.nombre)}${o.pagina > 1 ? ' · pág. ' + escapeHtml(o.pagina) : ''}</span>`
+          : plano
           ? `<a href="#" class="obs-g-link" data-obs="${escapeHtml(o.id)}" title="Ver la observación en el plano">${escapeHtml(plano.nombre)}${o.pagina > 1 ? ' · pág. ' + escapeHtml(o.pagina) : ''}</a>`
           : '<span class="obs-g-sinplano">Plano no disponible</span>';
         const deptoTxt = o.depto && o.depto !== 'General' ? etiquetaUnidad(o.depto) : (o.depto || '—');
@@ -1393,9 +1455,40 @@
       onCambioFiltroObs();
     });
 
+    // Subcontratista: las reglas solo le dejan leer observaciones de sus empresas, y Firestore
+    // exige que la consulta lleve ese filtro → una suscripción por empresa, unidas en la lista.
+    // Los planos se traen de a uno por ID (no puede listar la colección).
+    const planosPedidos = new Set();
+    async function cargarPlanosFaltantes() {
+      const faltan = [...new Set(todasLasObs.map(o => o.planoId))].filter(id => id && !planosPedidos.has(id) && !todosLosPlanos.some(p => p.id === id));
+      if (!faltan.length) return;
+      faltan.forEach(id => planosPedidos.add(id));
+      const docs = await Promise.all(faltan.map(id => getDoc(doc(db, 'planos', id)).catch(() => null)));
+      docs.forEach(d => { if (d?.exists()) todosLosPlanos.push({ id: d.id, ...d.data() }); });
+      renderizarListaObsGestion();
+    }
+    function iniciarListadoObsSubcontratista() {
+      const empresas = currentUserData?.responsables || [];
+      const porEmpresa = {};
+      if (!empresas.length) { todasLasObs = []; obsGlobalLista = true; onCambioFiltroObs(); return; }
+      const unsubs = empresas.map(emp => onSnapshot(
+        query(collection(db, 'observaciones'), where('empresa', '==', emp)),
+        snap => {
+          porEmpresa[emp] = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          todasLasObs = Object.values(porEmpresa).flat();
+          obsGlobalLista = true;
+          onCambioFiltroObs();
+          cargarPlanosFaltantes();
+        },
+        err => { console.error(err); registrarError('listado_observaciones_sub', err); }
+      ));
+      obsGlobalUnsubscribe = () => unsubs.forEach(u => u());
+    }
+
     function iniciarListadoObsGestion() {
       if (obsGlobalUnsubscribe) { onCambioFiltroObs(); return; }
       document.getElementById('lista-obs-gestion').innerHTML = '<div class="loading">Cargando observaciones...</div>';
+      if (esSubcontratista()) { iniciarListadoObsSubcontratista(); return; }
       obsGlobalUnsubscribe = onSnapshot(collection(db, 'observaciones'), snap => {
         todasLasObs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         obsGlobalLista = true;
@@ -2399,18 +2492,38 @@
     function mostrarToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.remove('oculto');t.classList.add('visible');setTimeout(()=>{t.classList.remove('visible');setTimeout(()=>t.classList.add('oculto'),300);},3000);}
 
     // ─── USUARIOS ─────────────────────────────────────────────────────────────
-    document.getElementById('btn-usuarios').addEventListener('click', async ()=>{if(currentUserData?.rol!=='admin')return;await cargarPanelUsuarios();document.getElementById('modal-usuarios').classList.remove('oculto');});
+    document.getElementById('btn-usuarios').addEventListener('click', async ()=>{if(currentUserData?.rol!=='admin')return;await cargarEmpresas();await cargarPanelUsuarios();document.getElementById('modal-usuarios').classList.remove('oculto');});
     document.getElementById('btn-cerrar-modal-usuarios').addEventListener('click', ()=>document.getElementById('modal-usuarios').classList.add('oculto'));
     async function cargarPanelUsuarios(){
       const lista=document.getElementById('lista-usuarios');lista.innerHTML='<div class="loading">Cargando...</div>';
       const snap=await getDocs(collection(db,'usuarios'));lista.innerHTML='';
       snap.forEach(d=>{
         const u={id:d.id,...d.data()};const div=document.createElement('div');div.className='item-usuario';
-        div.innerHTML=`<div class="usuario-info"><div class="usuario-nombre">${escapeHtml(u.nombre||u.email)}</div><div class="usuario-email">${escapeHtml(u.email)}</div></div><div class="usuario-acciones"><select class="sel-rol" data-uid="${escapeHtml(u.id)}" style="width:90px;padding:5px 6px;font-size:11px;"><option value="lector" ${u.rol==='lector'?'selected':''}>Lector</option><option value="inspector" ${u.rol==='inspector'?'selected':''}>Inspector</option><option value="admin" ${u.rol==='admin'?'selected':''}>Admin</option></select><button class="btn-toggle-auth ${u.autorizado?'activo':''}" data-uid="${escapeHtml(u.id)}" data-auth="${escapeHtml(u.autorizado)}">${u.autorizado?'✓ Autorizado':'Autorizar'}</button></div>`;
+        div.innerHTML=`<div class="usuario-info"><div class="usuario-nombre">${escapeHtml(u.nombre||u.email)}</div><div class="usuario-email">${escapeHtml(u.email)}</div></div><div class="usuario-acciones"><select class="sel-rol" data-uid="${escapeHtml(u.id)}" style="width:120px;padding:5px 6px;font-size:11px;"><option value="lector" ${u.rol==='lector'?'selected':''}>Lector</option><option value="inspector" ${u.rol==='inspector'?'selected':''}>Inspector</option><option value="admin" ${u.rol==='admin'?'selected':''}>Admin</option><option value="subcontratista" ${u.rol==='subcontratista'?'selected':''}>Subcontratista</option></select><button class="btn-toggle-auth ${u.autorizado?'activo':''}" data-uid="${escapeHtml(u.id)}" data-auth="${escapeHtml(u.autorizado)}">${u.autorizado?'✓ Autorizado':'Autorizar'}</button></div>`;
         div.querySelector('.btn-toggle-auth').addEventListener('click',async e=>{const b=e.currentTarget;await updateDoc(doc(db,'usuarios',b.dataset.uid),{autorizado:b.dataset.auth!=='true'});cargarPanelUsuarios();});
-        const rs=div.querySelector('.sel-rol');if(rs)rs.addEventListener('change',async e=>{await updateDoc(doc(db,'usuarios',e.currentTarget.dataset.uid),{rol:e.currentTarget.value});});
+        const rs=div.querySelector('.sel-rol');if(rs)rs.addEventListener('change',async e=>{await updateDoc(doc(db,'usuarios',e.currentTarget.dataset.uid),{rol:e.currentTarget.value});cargarPanelUsuarios();});
+        if(u.rol==='subcontratista')div.appendChild(editorEmpresasUsuario(u));
         lista.appendChild(div);
       });
+    }
+
+    // Empresas de un subcontratista (usuarios/{uid}.responsables). Los nombres se eligen de la lista
+    // de empresas por rubro para que coincidan EXACTO con los de observaciones (`empresa`) y
+    // certificados (`responsable`): las reglas de Firestore comparan texto exacto.
+    function editorEmpresasUsuario(u) {
+      const actuales = u.responsables || [];
+      const todas = [...new Set(Object.values(empresasCalidad).flat())].filter(e => !actuales.includes(e)).sort((a,b)=>a.localeCompare(b,'es'));
+      const box = document.createElement('div');
+      box.className = 'usuario-empresas';
+      box.innerHTML = `<div class="usuario-empresas-titulo">Empresas que puede ver</div>
+        <div class="empresa-chips">${actuales.map(e => `<span class="empresa-chip">${escapeHtml(e)}<button class="empresa-quitar" data-empresa="${escapeHtml(e)}">✕</button></span>`).join('') || '<span class="empresa-vacio">Ninguna: no va a ver nada</span>'}</div>
+        <div class="empresa-add"><select class="sel-empresa-user" style="flex:1;font-size:12px;padding:6px 8px"><option value="">— Agregar empresa —</option>${todas.map(e => `<option value="${escapeHtml(e)}">${escapeHtml(e)}</option>`).join('')}</select><button class="empresa-add-btn">+</button></div>`;
+      const guardar = async nuevo => { await updateDoc(doc(db, 'usuarios', u.id), { responsables: nuevo }); cargarPanelUsuarios(); };
+      box.querySelectorAll('.empresa-quitar').forEach(b => b.addEventListener('click', () => guardar(actuales.filter(e => e !== b.dataset.empresa))));
+      box.querySelector('.empresa-add-btn').addEventListener('click', () => {
+        const v = box.querySelector('.sel-empresa-user').value; if (v) guardar([...actuales, v]);
+      });
+      return box;
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -2449,6 +2562,16 @@
 
     // ── Carga de datos para el cálculo de estados ──
     async function cargarDatosCalidad() {
+      // Subcontratista: solo puede leer certificados cuyo `responsable` (empresa) está en su lista,
+      // y la consulta tiene que llevar ese filtro → una consulta por empresa.
+      if (esSubcontratista()) {
+        const empresas = currentUserData?.responsables || [];
+        const snaps = await Promise.all(empresas.map(e => getDocs(query(collection(db, 'certificados'), where('responsable', '==', e)))));
+        calidadCerts = snaps.flatMap(sn => sn.docs.map(d => ({ id: d.id, ...d.data() })));
+        calidadObs = []; calidadPpi = []; calidadNoAplica = [];
+        onCambioFiltroCerts();
+        return;
+      }
       const [obsSnap, certSnap, ppiSnap, naSnap] = await Promise.all([
         getDocs(collection(db, 'observaciones')),
         getDocs(collection(db, 'certificados')),
@@ -2583,6 +2706,8 @@
 
     // ── Pantalla Calidad ──
     async function iniciarPantallaCalidad() {
+      // Subcontratista: solo la lista de certificados de sus empresas (sin croquis ni emisión)
+      if (esSubcontratista()) { mostrarSeccionCalidad('lista'); await cargarDatosCalidad(); return; }
       // Poblar selector de rubros certificables (una vez)
       const selRubro = document.getElementById('cal-rubro');
       if (!selRubro.dataset.poblado) {
@@ -3882,6 +4007,13 @@
     .login-card p{font-size:13px;color:var(--text2);text-align:center;line-height:1.5;}
     #btn-login{background:#fff;color:#333;padding:10px 20px;border-radius:8px;font-weight:600;font-size:14px;display:flex;align-items:center;gap:10px;width:100%;justify-content:center;}
     #btn-login:hover{background:#f0f0f0;}
+    .login-sep{display:flex;align-items:center;gap:10px;width:100%;color:var(--text2);font-size:11px;text-transform:uppercase;letter-spacing:0.4px;}
+    .login-sep::before,.login-sep::after{content:'';flex:1;height:1px;background:var(--border);}
+    .login-email{display:flex;flex-direction:column;gap:10px;width:100%;}
+    .login-link{background:none;color:var(--text2);font-size:12px;text-decoration:underline;padding:2px;}
+    .login-link:hover{color:var(--accent);}
+    .login-mensaje{font-size:12px;text-align:center;line-height:1.4;color:var(--danger);}
+    .login-mensaje.ok{color:var(--success);}
     .google-icon{width:18px;height:18px;background:url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><path fill="%23EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="%234285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="%23FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="%2334A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>') center/contain no-repeat;}
 
     #pantalla-espera{height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;}
@@ -4087,7 +4219,9 @@
     .item-arrow{color:var(--text2);font-size:18px;}
     .item-volver{cursor:pointer;color:var(--accent2);font-weight:600;}.item-volver:hover{background:var(--bg3);border-radius:var(--radius-sm);}
 
-    .item-usuario{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border);gap:12px;}
+    .item-usuario{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border);gap:12px;flex-wrap:wrap;}
+    .usuario-empresas{flex-basis:100%;background:var(--bg3);border-radius:var(--radius-sm);padding:10px 12px;}
+    .usuario-empresas-titulo{font-size:10px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:6px;}
     .usuario-nombre{font-size:13px;font-weight:600;}.usuario-email{font-size:11px;color:var(--text2);margin-top:2px;}
     .usuario-acciones{display:flex;align-items:center;gap:8px;flex-shrink:0;}
     .btn-toggle-auth{padding:5px 10px;border-radius:var(--radius-sm);font-size:11px;font-weight:600;background:var(--bg3);color:var(--text2);border:1px solid var(--border);}
@@ -4251,8 +4385,16 @@
     </div>
     <div class="login-card">
       <h2>Iniciar sesión</h2>
-      <p>Accedé con tu cuenta de Google. Si aún no estás registrado, el administrador deberá autorizarte.</p>
+      <p>Accedé con tu cuenta de Google o con el email que te dio el administrador. Si aún no estás registrado, el administrador deberá autorizarte.</p>
       <button id="btn-login"><span class="google-icon"></span>Continuar con Google</button>
+      <div class="login-sep"><span>o con email</span></div>
+      <form id="form-login-email" class="login-email">
+        <input type="email" id="login-email" placeholder="Email" autocomplete="username" required>
+        <input type="password" id="login-password" placeholder="Contraseña" autocomplete="current-password" required>
+        <button type="submit" id="btn-login-email" class="btn-primary">Ingresar</button>
+        <button type="button" id="btn-reset-password" class="login-link">Olvidé mi contraseña</button>
+        <div id="login-mensaje" class="login-mensaje oculto"></div>
+      </form>
     </div>
   </div>
 
@@ -4296,15 +4438,15 @@
           <div class="home-card-icono">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
           </div>
-          <div class="home-card-titulo">Gestión de observaciones</div>
-          <div class="home-card-desc">Marcá nuevas observaciones en planos y revisá el historial de cada unidad.</div>
+          <div id="home-insp-titulo" class="home-card-titulo">Gestión de observaciones</div>
+          <div id="home-insp-desc" class="home-card-desc">Marcá nuevas observaciones en planos y revisá el historial de cada unidad.</div>
         </button>
         <button id="btn-home-calidad" class="home-card">
           <div class="home-card-icono">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m9 12 2 2 4-4"/></svg>
           </div>
-          <div class="home-card-titulo">Certificado de calidad</div>
-          <div class="home-card-desc">Emisión del certificado final por unidad y rubro inspeccionado.</div>
+          <div id="home-cal-titulo" class="home-card-titulo">Certificado de calidad</div>
+          <div id="home-cal-desc" class="home-card-desc">Emisión del certificado final por unidad y rubro inspeccionado.</div>
         </button>
       </div>
     </div>
