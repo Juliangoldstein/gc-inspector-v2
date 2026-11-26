@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>GC Inspector — Catamarán 12</title>
-  <meta name="theme-color" content="#1a1a2e">
+  <meta name="theme-color" content="#1a1d27">
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/png" href="favicon-final-32.png">
   <link rel="apple-touch-icon" href="icon-192.png">
@@ -4490,16 +4490,172 @@
     .empresa-add input{flex:1;font-size:12px;padding:6px 8px;}
     .empresa-add-btn{background:var(--accent);color:var(--accent-text);border-radius:var(--radius-sm);width:32px;font-weight:700;font-size:16px;flex-shrink:0;}
 
-    @media(max-width:600px){
-      #panel-obs{width:100%;max-width:360px;}
-      #panel-lista-obs{width:100%;max-width:360px;}
-      #cal-detalle{width:100%;max-width:100%;}
-      .btn-icono-texto span{display:none;}
-      .login-card{width:100%;padding:24px 20px;}
-      .user-texts{display:none;}
-      .pestaña-nombre{max-width:80px;}
-      .home-card{width:100%;}
-      #home-user-nombre{display:none;}
+    /* ═══ BASE COMÚN A TODOS LOS TAMAÑOS ═══
+       · 100dvh: en el celular 100vh incluye la barra del navegador y corta el
+         pie de cada pantalla; dvh es el alto realmente visible.
+       · Login, espera e inicio se centran con margin:auto en vez de
+         justify-content:center: centran igual cuando hay lugar, pero cuando el
+         contenido no entra (celular, teclado abierto) se puede scrollear en vez
+         de quedar cortado arriba y abajo. */
+    @supports (height:100dvh){
+      #pantalla-login,#pantalla-espera,#pantalla-planos,#pantalla-inspector,#pantalla-home,#pantalla-ppi,#pantalla-calidad{height:100dvh;}
+    }
+    #pantalla-login,#pantalla-espera{justify-content:flex-start;overflow-y:auto;padding:24px 16px;}
+    #pantalla-login > :first-child,#pantalla-espera > :first-child{margin-top:auto;}
+    #pantalla-login > :last-child,#pantalla-espera > :last-child{margin-bottom:auto;}
+    .home-body{justify-content:flex-start;overflow-y:auto;}
+    .home-titulo{margin-top:auto;}
+    .home-botones{margin-bottom:auto;}
+    .ico-movil{display:none;}
+    button,a,label,select,input{-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
+    .espera-card{max-width:100%;}
+
+    /* ═══ CELULAR ═══
+       La app se usa en obra desde el teléfono: todo lo de abajo sólo corre
+       por debajo de 640px y no toca la versión de escritorio. */
+    @media(max-width:640px){
+      html,body{font-size:15px;}
+      /* 16px en los campos: con menos, iOS hace zoom al enfocarlos. */
+      input,select,textarea{font-size:16px;padding:10px 12px;}
+      .campo-filtro select{font-size:15px;padding:9px 10px;}
+      .filtro-busqueda{font-size:16px;padding:11px 12px;}
+
+      /* ── Login ── */
+      #pantalla-login{gap:24px;padding:28px 16px calc(24px + env(safe-area-inset-bottom));}
+      .login-logo{gap:8px;}
+      .login-logo-icon{width:88px;height:88px;border-radius:22px;box-shadow:0 10px 30px rgba(0,0,0,.45);}
+      .login-title{font-size:22px;}
+      .login-subtitle{font-size:13px;text-align:center;}
+      .login-card{width:100%;max-width:420px;padding:20px 18px;gap:16px;border-radius:18px;}
+      .login-card p{font-size:13.5px;}
+      .login-tab{padding:10px;font-size:14px;}
+      #btn-login,#btn-login-email{min-height:48px;font-size:15px;border-radius:10px;}
+      .login-link{font-size:13px;padding:6px;}
+
+      /* ── Espera ── */
+      .espera-card{padding:28px 20px;width:100%;max-width:420px;}
+
+      /* ── Headers compactos: logo sólo en el inicio, acciones como íconos ── */
+      .header{padding:env(safe-area-inset-top) 12px 0;height:calc(56px + env(safe-area-inset-top));gap:8px;}
+      .header-marca{gap:8px;min-width:0;flex:1;}
+      .header-marca > div:last-child{min-width:0;}
+      .header-marca .btn-volver ~ .header-icono{display:none;}
+      .header-titulo{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+      .header-subtitulo{white-space:nowrap;}
+      .header-acciones{gap:6px;flex-shrink:0;}
+      .header .txt-largo,.inspector-header .txt-largo{display:none;}
+      .header .ico-movil,.inspector-header .ico-movil{display:block;width:18px;height:18px;}
+      .header .btn-secondary,.inspector-header .btn-logout{min-width:40px;height:40px;padding:0 10px!important;display:inline-flex;align-items:center;justify-content:center;font-size:16px!important;line-height:1;}
+      #btn-usuarios[style*="block"]{display:inline-flex!important;}
+      .btn-volver{padding:10px;}
+      .user-info,.user-texts,#home-user-nombre,#ppi-user-nombre{display:none;}
+
+      /* ── Inicio: tarjetas en lista, las tres entran sin scrollear ── */
+      .home-body{align-items:stretch;gap:20px;padding:24px 16px calc(24px + env(safe-area-inset-bottom));}
+      .home-titulo{text-align:left;}
+      .home-titulo h1{font-size:24px;}
+      .home-titulo p{font-size:14px;margin-top:4px;}
+      .home-botones{flex-direction:column;flex-wrap:nowrap;gap:12px;width:100%;counter-reset:paso;}
+      .home-card{width:100%;display:grid;grid-template-columns:56px 1fr 16px;grid-template-rows:auto auto;column-gap:14px;row-gap:3px;align-items:center;text-align:left;padding:16px;border-radius:16px;counter-increment:paso;}
+      .home-card:hover{transform:none;}
+      .home-card:active{transform:scale(.98);background:var(--bg3);border-color:var(--accent);}
+      .home-card-icono{grid-row:1 / 3;width:56px;height:56px;border-radius:14px;}
+      .home-card-icono svg{width:28px;height:28px;}
+      .home-card-titulo{font-size:16px;line-height:1.25;align-self:end;}
+      .home-card-desc{font-size:13px;line-height:1.4;grid-column:2;align-self:start;}
+      /* El orden de las tarjetas es el flujo de obra (PPI → observar → certificar). */
+      .home-card-titulo::before{content:'Paso ' counter(paso);display:block;font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--accent);margin-bottom:3px;}
+      .home-card::after{content:'';grid-column:3;grid-row:1 / 3;width:9px;height:9px;border-right:2px solid var(--text2);border-top:2px solid var(--text2);transform:rotate(45deg);justify-self:center;}
+
+      /* ── Gestión de observaciones / listados ── */
+      .planos-body{padding:14px 14px calc(24px + env(safe-area-inset-bottom));}
+      .gestion-tabs,.cal-tabs{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:4px;gap:4px;margin-bottom:16px;}
+      .gestion-tab,.cal-tab{flex:1;padding:10px 6px;font-size:13px;border-radius:9px;border-bottom:none;margin-bottom:0;line-height:1.25;}
+      .gestion-tab.activa,.cal-tab.activa{background:var(--bg3);color:var(--accent);box-shadow:0 1px 3px rgba(0,0,0,.3);}
+      .gestion-tab:hover,.cal-tab:hover{background:var(--bg3);}
+      .cal-tabs{margin-bottom:0;}
+      .planos-header{flex-wrap:wrap;gap:12px;margin-bottom:14px;}
+      .planos-header > div{flex:1;min-width:180px;}
+      .planos-header h2{font-size:18px;}
+      .planos-header .btn-primary,.planos-header .btn-secondary{min-height:42px;}
+      #btn-agregar-plano{width:100%;}
+      .filtros-selects,.calidad-selectores{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+      .filtros-selects .btn-limpiar,.calidad-selectores .btn-limpiar{grid-column:1 / -1;min-height:40px;}
+      .campo-filtro,.calidad-selectores .campo-filtro{min-width:0;}
+      .calidad-selectores .campo-filtro:has(#cal-rubro){grid-column:1 / -1;}
+      .tarjeta-plano{padding:12px 12px 12px 14px;gap:10px;}
+      .plano-info{gap:10px;min-width:0;flex:1;}
+      .plano-info > div:last-child{min-width:0;}
+      .plano-icono{font-size:20px;}
+      .plano-nombre{font-size:14px;overflow-wrap:anywhere;}
+      .plano-acciones{flex-shrink:0;gap:6px;}
+      .btn-abrir{padding:10px 16px;}
+      .btn-eliminar-plano{padding:8px 10px;}
+      .obs-g-fila{padding:12px;}
+
+      /* ── Visor de planos ── */
+      .inspector-header{padding:env(safe-area-inset-top) 10px 0;height:calc(56px + env(safe-area-inset-top));gap:8px;}
+      .inspector-titulo h1{font-size:14px;}
+      #pestañas-bar{padding:0 10px;}
+      .pestaña{padding:8px 10px;}
+      .pestaña-nombre{max-width:110px;}
+      .pestaña-cerrar{font-size:14px;padding:2px 4px;}
+      /* Dos filas: navegación (página + zoom) y acciones; "Nueva obs." pasa a
+         botón flotante al pie, al alcance del pulgar. */
+      .inspector-toolbar{flex-wrap:wrap;padding:8px 10px;gap:6px;}
+      .inspector-toolbar .toolbar-sep:nth-of-type(2){flex-basis:100%;height:0;}
+      .btn-pag{min-width:38px;height:38px;padding:0 10px;font-size:15px;}
+      #btn-pagina-actual{min-width:0;height:38px;padding:0 10px;font-size:12px;}
+      #contador-obs{display:none;}
+      #btn-imprimir-informe,#btn-sincronizar,#btn-lista-obs{flex:1;justify-content:center;height:40px;padding:0 6px;font-size:12.5px;}
+      .inspector-toolbar .btn-icono-texto span{display:inline;}
+      #btn-nueva-obs{position:fixed;right:16px;bottom:calc(20px + env(safe-area-inset-bottom));z-index:9;height:54px;padding:0 22px;border-radius:27px;font-size:15px;box-shadow:0 6px 20px rgba(0,0,0,.5),0 0 0 1px rgba(0,0,0,.2);}
+      .pin{width:30px;height:30px;}
+      .pin-num{font-size:12px;}
+      #panel-obs,#panel-lista-obs{width:100%;max-width:100%;border-left:none;}
+      .panel-header{padding:12px 14px;}
+      .panel-header h3{font-size:15px;}
+      .btn-cerrar-panel{width:36px;height:36px;font-size:17px;}
+      .panel-body{padding:14px;}
+      .panel-footer{padding:12px 14px calc(12px + env(safe-area-inset-bottom));}
+      #btn-guardar-obs,#btn-eliminar-obs{min-height:48px;font-size:15px;}
+      .btn-foto,.btn-eliminar-foto{padding:12px;font-size:14px;}
+      .item-lista-obs{padding:12px;}
+
+      /* ── Certificado de calidad ── */
+      .calidad-body,.ppi-body{padding:14px 14px calc(24px + env(safe-area-inset-bottom));gap:14px;}
+      .calidad-leyenda{gap:8px 14px;font-size:12px;}
+      .calidad-croquis{padding:10px;min-height:220px;border-radius:12px;}
+      .calidad-croquis svg{max-height:none;}
+      #cal-detalle{width:100%;max-width:100%;border-left:none;}
+      #cal-btn-certificar{min-height:48px;}
+      #cal-btn-noaplica{padding:10px 14px;font-size:13px;}
+      .cal-btn-repdf{padding:6px 10px;font-size:12px;}
+
+      /* ── PPI ── */
+      .ppi-card-head,.ppi-fila-head{padding:14px 12px;gap:8px;}
+      .ppi-fila-head{padding-left:18px;}
+      .ppi-card-titulo{font-size:14px;min-width:0;}
+      .ppi-fila-titulo{min-width:0;}
+      .ppi-ambito{display:none;}
+      .ppi-card-body > .ppi-items,.ppi-card-body > .ppi-firma,.ppi-card-body > .ppi-acciones,.ppi-card-body > .ppi-aviso-bloqueo{margin:12px;}
+      .ppi-fila-body{padding:2px 12px 12px 18px;}
+      .ppi-item{padding:10px 8px;font-size:14px;gap:12px;}
+      .ppi-item input{width:20px;height:20px;margin-top:0;}
+      .ppi-acciones button{flex:1;min-height:44px;font-size:14px;}
+
+      /* ── Modales como hoja inferior ── */
+      .modal-overlay{align-items:flex-end;padding:0;}
+      .modal{width:100%!important;max-width:100%;max-height:92dvh!important;border-radius:18px 18px 0 0;border-bottom:none;padding-bottom:env(safe-area-inset-bottom);}
+      .modal-informe{height:100dvh;max-height:100dvh!important;border-radius:0;}
+      .modal-header{padding:14px 16px;}
+      .btn-cerrar-modal{width:36px;height:36px;}
+      .modal-body{padding:14px 16px;}
+      .item-dropbox{padding:12px 0;}
+      .btn-seleccionar{padding:9px 14px;}
+      .modal-informe .btn-icono-texto span{display:none;}
+
+      #toast{bottom:calc(88px + env(safe-area-inset-bottom));max-width:calc(100% - 32px);text-align:center;}
     }
   </style>
 </head>
@@ -4557,8 +4713,8 @@
       </div>
       <div class="header-acciones">
         <span id="home-user-nombre" class="user-nombre" style="margin-right:8px"></span>
-        <button id="btn-usuarios" class="btn-secondary" style="display:none">👥 Usuarios</button>
-        <button class="btn-logout btn-secondary">Cerrar sesión</button>
+        <button id="btn-usuarios" class="btn-secondary" style="display:none" title="Usuarios" aria-label="Usuarios">👥<span class="txt-largo"> Usuarios</span></button>
+        <button class="btn-logout btn-secondary" title="Cerrar sesión" aria-label="Cerrar sesión"><svg class="ico-movil" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg><span class="txt-largo">Cerrar sesión</span></button>
       </div>
     </header>
     <div class="home-body">
@@ -4606,7 +4762,7 @@
       <div class="header-acciones">
         <!-- Sin flecha "←" a propósito: en el visor la flecha ya significa
              "volver al listado", y acá el sentido es el opuesto. -->
-        <button id="btn-volver-inspector" class="btn-secondary oculto" title="Volver al plano que dejaste abierto">📐 Planos abiertos</button>
+        <button id="btn-volver-inspector" class="btn-secondary oculto" title="Volver al plano que dejaste abierto" aria-label="Planos abiertos">📐<span class="txt-largo"> Planos abiertos</span></button>
         <div class="user-info">
           <img id="user-avatar" class="user-avatar" src="" alt="">
           <div class="user-texts">
@@ -4614,7 +4770,7 @@
             <div id="user-email" class="user-email-small"></div>
           </div>
         </div>
-        <button class="btn-logout btn-secondary">Cerrar sesión</button>
+        <button class="btn-logout btn-secondary" title="Cerrar sesión" aria-label="Cerrar sesión"><svg class="ico-movil" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg><span class="txt-largo">Cerrar sesión</span></button>
       </div>
     </header>
     <div class="planos-body">
@@ -4712,7 +4868,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
       </button>
       <div class="inspector-titulo"><h1 id="inspector-titulo">Plano</h1><span id="inspector-obra"></span></div>
-      <button class="btn-logout btn-secondary" style="font-size:12px;padding:6px 10px">Cerrar sesión</button>
+      <button class="btn-logout btn-secondary" style="font-size:12px;padding:6px 10px" title="Cerrar sesión" aria-label="Cerrar sesión"><svg class="ico-movil" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg><span class="txt-largo">Cerrar sesión</span></button>
     </header>
     <div id="pestañas-bar">
       <div id="pestañas-container"></div>
@@ -4803,9 +4959,9 @@
         <div><div class="header-titulo">Certificado de calidad</div><div class="header-subtitulo">Catamarán 12</div></div>
       </div>
       <div class="header-acciones">
-        <button id="cal-btn-empresas" class="btn-secondary oculto">🏢 Empresas</button>
-        <button id="cal-btn-actualizar" class="btn-secondary">↻ Actualizar</button>
-        <button class="btn-logout btn-secondary">Cerrar sesión</button>
+        <button id="cal-btn-empresas" class="btn-secondary oculto" title="Empresas" aria-label="Empresas">🏢<span class="txt-largo"> Empresas</span></button>
+        <button id="cal-btn-actualizar" class="btn-secondary" title="Actualizar" aria-label="Actualizar">↻<span class="txt-largo"> Actualizar</span></button>
+        <button class="btn-logout btn-secondary" title="Cerrar sesión" aria-label="Cerrar sesión"><svg class="ico-movil" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg><span class="txt-largo">Cerrar sesión</span></button>
       </div>
     </header>
     <div class="calidad-body">
@@ -4895,7 +5051,7 @@
       </div>
       <div class="header-acciones">
         <span id="ppi-user-nombre" class="user-nombre" style="margin-right:8px"></span>
-        <button class="btn-logout btn-secondary">Cerrar sesión</button>
+        <button class="btn-logout btn-secondary" title="Cerrar sesión" aria-label="Cerrar sesión"><svg class="ico-movil" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg><span class="txt-largo">Cerrar sesión</span></button>
       </div>
     </header>
     <div class="ppi-body">
