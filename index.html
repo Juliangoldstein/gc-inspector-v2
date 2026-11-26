@@ -1365,6 +1365,18 @@
 
     // Cada filtro: id del <select>, cómo sacar el valor de la obs y cómo mostrarlo.
     // Edificio y nivel se filtran por código (bloqueCod / nivelCod) y se muestran con su nombre.
+    // Subcontratista: Rubro y Responsable solo se muestran si tiene más de un valor para elegir
+    // (p. ej. varias empresas); con una sola empresa son siempre el suyo y sobran. Para el resto
+    // de los roles siempre se ven. `sufijo`: 'fo' (observaciones) o 'fc' (certificados).
+    function ajustarFiltrosFijosSub(sufijo, items, valorRubro, valorResp) {
+      const sub = esSubcontratista();
+      [['rubro', valorRubro], ['responsable', valorResp]].forEach(([campo, valor]) => {
+        const sel = document.getElementById(`${sufijo}-${campo}`);
+        const variados = new Set(items.map(valor).filter(Boolean)).size > 1;
+        sel.parentElement.classList.toggle('oculto', sub && !variados && !sel.value);
+      });
+    }
+
     const FILTROS_OBS = [
       { id: 'fo-rubro',       valor: o => o.rubro || '',       etiqueta: v => v },
       { id: 'fo-responsable', valor: o => o.empresa || o.responsable || '', etiqueta: v => v },
@@ -1448,7 +1460,10 @@
       cont.innerHTML = `<div class="obs-g-fila obs-g-encabezado"><div>ID</div><div>Plano</div><div>Rubro</div><div>Responsable</div><div>Edificio</div><div>Nivel</div><div>Depto.</div><div>Estado</div></div>` + filas;
     }
 
-    function onCambioFiltroObs() { actualizarFiltrosObsGestion(); renderizarListaObsGestion(); }
+    function onCambioFiltroObs() {
+      ajustarFiltrosFijosSub('fo', todasLasObs, o => o.rubro, o => o.empresa || o.responsable);
+      actualizarFiltrosObsGestion(); renderizarListaObsGestion();
+    }
     FILTROS_OBS.forEach(f => document.getElementById(f.id).addEventListener('change', onCambioFiltroObs));
     document.getElementById('fo-limpiar').addEventListener('click', () => {
       FILTROS_OBS.forEach(f => { document.getElementById(f.id).value = ''; });
@@ -2834,7 +2849,10 @@
       cont.innerHTML = `<div class="obs-g-fila obs-g-encabezado cert-g"><div>ID</div><div>Rubro</div><div>Responsable</div><div>Edificio</div><div>Nivel</div><div>Depto.</div><div>Fecha</div><div></div></div>` + filas;
     }
 
-    function onCambioFiltroCerts() { actualizarFiltrosCerts(); renderizarListaCerts(); }
+    function onCambioFiltroCerts() {
+      ajustarFiltrosFijosSub('fc', calidadCerts, c => c.rubro, c => c.responsable);
+      actualizarFiltrosCerts(); renderizarListaCerts();
+    }
     FILTROS_CERTS.forEach(f => document.getElementById(f.id).addEventListener('change', onCambioFiltroCerts));
     document.getElementById('fc-limpiar').addEventListener('click', () => {
       FILTROS_CERTS.forEach(f => { document.getElementById(f.id).value = ''; });
