@@ -987,6 +987,7 @@
       if (planosUnsubscribe) planosUnsubscribe();
       if (obsGlobalUnsubscribe) { obsGlobalUnsubscribe(); obsGlobalUnsubscribe = null; }
       todasLasObs = []; obsGlobalLista = false; planosPedidos.clear(); todosLosPlanos = [];
+      document.getElementById('fo-estado').value = 'Pendiente';
       if (ppiUnsubscribe) { ppiUnsubscribe(); ppiUnsubscribe = null; }
       dropboxToken = null; dropboxTokenExpira = 0; // no dejar el token del usuario anterior en esta pestaña
       await signOut(auth);
@@ -1474,7 +1475,9 @@
         .filter(f => f.id !== excluirId)
         .map(f => ({ f, v: document.getElementById(f.id).value }))
         .filter(x => x.v);
-      return todasLasObs.filter(o => activos.every(({ f, v }) => f.valor(o) === v));
+      // Estado: por defecto "Pendientes" (lo que más importa). Una obs sin estado cuenta como pendiente.
+      const estado = document.getElementById('fo-estado').value;
+      return todasLasObs.filter(o => (!estado || (o.estado || 'Pendiente') === estado) && activos.every(({ f, v }) => f.valor(o) === v));
     }
 
     function ordenarOpcionesObs(filtro, valores) {
@@ -1506,12 +1509,20 @@
       const resumen = document.getElementById('obs-gestion-resumen');
       const obs = obsFiltradas(null).sort((a, b) => (a.numero || '').localeCompare(b.numero || '', 'es', { numeric: true }));
       const hayFiltro = FILTROS_OBS.some(f => document.getElementById(f.id).value);
-      const pend = obs.filter(o => o.estado === 'Pendiente').length;
-      resumen.textContent = `${obs.length} ${obs.length !== 1 ? 'observaciones' : 'observación'} · ${pend} pendiente${pend !== 1 ? 's' : ''}` +
-        (hayFiltro ? ` (de ${todasLasObs.length} en total)` : '');
+      const estadoSel = document.getElementById('fo-estado').value; // 'Pendiente' | 'Resuelta' | '' (todas)
+      const n = obs.length;
+      const pend = obs.filter(o => (o.estado || 'Pendiente') === 'Pendiente').length;
+      resumen.textContent = (estadoSel === 'Pendiente' ? `${n} pendiente${n !== 1 ? 's' : ''}`
+        : estadoSel === 'Resuelta' ? `${n} resuelta${n !== 1 ? 's' : ''}`
+        : `${n} ${n !== 1 ? 'observaciones' : 'observación'} · ${pend} pendiente${pend !== 1 ? 's' : ''}`) +
+        ((hayFiltro || estadoSel) ? ` (de ${todasLasObs.length} en total)` : '');
 
       if (obs.length === 0) {
-        cont.innerHTML = `<div class="empty-state"><div class="empty-icon">📋</div><p>${hayFiltro ? 'No hay observaciones con esos filtros.' : esSubcontratista() ? 'No hay observaciones a nombre de tu empresa.' : 'Todavía no hay observaciones cargadas.'}</p></div>`;
+        const vacio = hayFiltro ? 'No hay observaciones con esos filtros.'
+          : estadoSel === 'Pendiente' && todasLasObs.length ? 'No hay observaciones pendientes.'
+          : estadoSel === 'Resuelta' && todasLasObs.length ? 'Todavía no hay observaciones resueltas.'
+          : esSubcontratista() ? 'No hay observaciones a nombre de tu empresa.' : 'Todavía no hay observaciones cargadas.';
+        cont.innerHTML = `<div class="empty-state"><div class="empty-icon">📋</div><p>${vacio}</p></div>`;
         return;
       }
 
@@ -1544,8 +1555,10 @@
       actualizarFiltrosObsGestion(); renderizarListaObsGestion();
     }
     FILTROS_OBS.forEach(f => document.getElementById(f.id).addEventListener('change', onCambioFiltroObs));
+    document.getElementById('fo-estado').addEventListener('change', onCambioFiltroObs);
     document.getElementById('fo-limpiar').addEventListener('click', () => {
       FILTROS_OBS.forEach(f => { document.getElementById(f.id).value = ''; });
+      document.getElementById('fo-estado').value = 'Pendiente'; // "limpiar" vuelve al estado por defecto
       onCambioFiltroObs();
     });
 
@@ -4641,6 +4654,7 @@
 
         <div class="filtros-bar">
           <div class="filtros-selects">
+            <div class="campo-filtro"><label>Estado</label><select id="fo-estado"><option value="Pendiente" selected>Pendientes</option><option value="Resuelta">Resueltas</option><option value="">Todas</option></select></div>
             <div class="campo-filtro"><label>Rubro</label><select id="fo-rubro"><option value="">Todos</option></select></div>
             <div class="campo-filtro"><label>Responsable</label><select id="fo-responsable"><option value="">Todos</option></select></div>
             <div class="campo-filtro"><label>Edificio</label><select id="fo-bloque"><option value="">Todos</option></select></div>
