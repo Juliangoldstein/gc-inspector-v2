@@ -64,6 +64,7 @@
     // El Apps Script ya NO se llama directo desde el navegador — pasa por esta
     // Cloud Function, que exige la sesión real del usuario logueado y chequea
     // en Firestore que esté autorizado antes de reenviar el pedido al Sheet.
+    const CLOUD_FUNCTION_LINK_PLANO = 'https://us-central1-gc-inspector-catamaran12.cloudfunctions.net/obtenerLinkPlano';
     const PROXY_APPS_SCRIPT_URL = 'https://us-central1-gc-inspector-catamaran12.cloudfunctions.net/proxyAppsScript';
 
     async function llamarAppsScript(payload) {
@@ -921,6 +922,7 @@
       if (obsGlobalUnsubscribe) { obsGlobalUnsubscribe(); obsGlobalUnsubscribe = null; }
       todasLasObs = []; obsGlobalLista = false; planosPedidos.clear(); todosLosPlanos = [];
       if (ppiUnsubscribe) { ppiUnsubscribe(); ppiUnsubscribe = null; }
+      dropboxToken = null; dropboxTokenExpira = 0; // no dejar el token del usuario anterior en esta pestaña
       await signOut(auth);
     }));
 
@@ -932,7 +934,9 @@
       // vence a mitad de camino).
       if (dropboxToken && Date.now() < dropboxTokenExpira - 30000) return dropboxToken;
 
-      const res = await fetch(CLOUD_FUNCTION_DROPBOX_TOKEN);
+      // La función exige la sesión de Firebase (ID token) y solo la entrega a admin/inspector/lector
+      const idToken = await currentUser.getIdToken();
+      const res = await fetch(CLOUD_FUNCTION_DROPBOX_TOKEN, { headers: { 'Authorization': `Bearer ${idToken}` } });
       if (!res.ok) throw new Error('No se pudo obtener el token de Dropbox (Cloud Function)');
       const datos = await res.json();
       dropboxToken = datos.access_token;
@@ -945,7 +949,19 @@
       const entries = (await res.json()).entries || [];
       return { carpetas: entries.filter(e => e['.tag']==='folder').sort((a,b)=>a.name.localeCompare(b.name)), pdfs: entries.filter(e=>e['.tag']==='file'&&e.name.toLowerCase().endsWith('.pdf')).sort((a,b)=>a.name.localeCompare(b.name)) };
     }
-    async function descargarPDF(path) {
+    // Solo lectura = lector o subcontratista (no crean ni editan nada)
+    function esSoloLectura() { return currentUserData?.rol === 'lector' || currentUserData?.rol === 'subcontratista'; }
+
+    async function descargarPDF(path, planoId) {
+      // Subcontratista: nunca recibe el token de Dropbox. Le pide al servidor un link temporal
+      // de ESE plano, que el servidor entrega solo si el plano tiene observaciones de su empresa.
+      if (esSubcontratista()) {
+        const idToken = await currentUser.getIdToken();
+        const r = await fetch(CLOUD_FUNCTION_LINK_PLANO, { method: 'POST', headers: { 'Authorization': `Bearer ${idToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ planoId }) });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok || !d.link) throw new Error(d.mensaje || 'No se pudo obtener el plano');
+        return await (await fetch(d.link)).arrayBuffer();
+      }
       const token = await getDropboxToken();
       const res = await fetch('https://api.dropboxapi.com/2/files/get_temporary_link', { method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ path }) });
       const data = await res.json();
@@ -1437,10 +1453,7 @@
       const celda = (etiqueta, html, clase = '') => `<div class="obs-g-celda ${clase}" data-l="${etiqueta}">${html}</div>`;
       const filas = obs.map(o => {
         const plano = planosPorId.get(o.planoId);
-        // Subcontratista: por ahora ve el nombre del plano sin link (el visor usa el token general de Dropbox)
-        const linkPlano = plano && esSubcontratista()
-          ? `<span class="obs-g-plano-txt">${escapeHtml(plano.nombre)}${o.pagina > 1 ? ' · pág. ' + escapeHtml(o.pagina) : ''}</span>`
-          : plano
+        const linkPlano = plano
           ? `<a href="#" class="obs-g-link" data-obs="${escapeHtml(o.id)}" title="Ver la observación en el plano">${escapeHtml(plano.nombre)}${o.pagina > 1 ? ' · pág. ' + escapeHtml(o.pagina) : ''}</a>`
           : '<span class="obs-g-sinplano">Plano no disponible</span>';
         const deptoTxt = o.depto && o.depto !== 'General' ? etiquetaUnidad(o.depto) : (o.depto || '—');
@@ -1672,20 +1685,31 @@
       pestañas.set(plano.id, estado);
 
       // Suscribir a observaciones en tiempo real
-      estado.obsUnsubscribe = onSnapshot(
-        query(collection(db,'observaciones'), where('planoId','==',plano.id), orderBy('creadoEn','asc')),
-        snap => {
-          snap.docChanges().forEach(ch => {
-            if (ch.type==='removed') delete estado.observaciones[ch.doc.id];
-            else estado.observaciones[ch.doc.id] = { id: ch.doc.id, ...ch.doc.data() };
-          });
-          if (pestañaActiva === plano.id) {
-            renderizarMarcadores();
-            actualizarContadorObs();
-            if (!document.getElementById('panel-lista-obs').classList.contains('oculto')) renderizarListaObs();
-          }
+      const alRecibirObs = snap => {
+        snap.docChanges().forEach(ch => {
+          if (ch.type==='removed') delete estado.observaciones[ch.doc.id];
+          else estado.observaciones[ch.doc.id] = { id: ch.doc.id, ...ch.doc.data() };
+        });
+        if (pestañaActiva === plano.id) {
+          renderizarMarcadores();
+          actualizarContadorObs();
+          if (!document.getElementById('panel-lista-obs').classList.contains('oculto')) renderizarListaObs();
         }
-      );
+      };
+      if (esSubcontratista()) {
+        // Solo las observaciones de sus empresas en este plano (una consulta por empresa: lo exigen las reglas)
+        const unsubs = (currentUserData.responsables || []).map(emp => onSnapshot(
+          query(collection(db,'observaciones'), where('planoId','==',plano.id), where('empresa','==',emp)),
+          alRecibirObs,
+          err => { console.error(err); registrarError('obs_plano_sub', err, { planoId: plano.id }); }
+        ));
+        estado.obsUnsubscribe = () => unsubs.forEach(u => u());
+      } else {
+        estado.obsUnsubscribe = onSnapshot(
+          query(collection(db,'observaciones'), where('planoId','==',plano.id), orderBy('creadoEn','asc')),
+          alRecibirObs
+        );
+      }
 
       mostrar('inspector');
       renderizarPestañas();
@@ -1761,7 +1785,7 @@
     }
 
     function actualizarToolbar(estado) {
-      const esLector = currentUserData?.rol === 'lector';
+      const esLector = esSoloLectura();
       document.getElementById('inspector-titulo').textContent  = estado.plano.nombre;
       document.getElementById('inspector-obra').textContent    = OBRA_NOMBRE;
       document.getElementById('btn-pagina-actual').textContent = `Página ${estado.pagina}`;
@@ -1776,8 +1800,8 @@
       const spinner = document.getElementById('pdf-spinner');
       spinner.classList.remove('oculto');
       try {
-        estado.pdfDoc = await pdfjsLib.getDocument({ data: await descargarPDF(estado.plano.dropboxPath) }).promise;
-        if (estado.pdfDoc.numPages !== estado.plano.paginas) {
+        estado.pdfDoc = await pdfjsLib.getDocument({ data: await descargarPDF(estado.plano.dropboxPath, estado.plano.id) }).promise;
+        if (estado.pdfDoc.numPages !== estado.plano.paginas && !esSoloLectura()) {
           await updateDoc(doc(db,'planos',estado.plano.id), { paginas: estado.pdfDoc.numPages });
           estado.plano.paginas = estado.pdfDoc.numPages;
         }
@@ -2034,7 +2058,7 @@
       }
       sel.value = valorActual || 'General';
 
-      if (currentUserData?.rol === 'lector') sel.disabled = true;
+      if (esSoloLectura()) sel.disabled = true;
     }
 
     function abrirPanelNuevaObs(x, y) {
@@ -2052,7 +2076,7 @@
       const est = pestañaActual(); if (!est) return;
       const obs = est.observaciones[obsId]; if(!obs)return;
       est.obsSeleccionada = obsId;
-      const esLector=currentUserData?.rol==='lector';
+      const esLector=esSoloLectura();
       document.getElementById('panel-titulo').textContent=obs.numero||'Observación';
       document.getElementById('obs-x').value=obs.x; document.getElementById('obs-y').value=obs.y;
       // Si la obs tiene un rubro viejo que ya no está en la lista maestra
