@@ -38,7 +38,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-    import { getAuth, signInWithPopup, signOut, GoogleAuthProvider, onAuthStateChanged, signInWithEmailAndPassword, sendPasswordResetEmail }
+    import { getAuth, signInWithPopup, signOut, GoogleAuthProvider, onAuthStateChanged, signInWithEmailAndPassword, sendPasswordResetEmail, createUserWithEmailAndPassword, updateProfile }
       from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
     import { getFirestore, collection, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc,
       query, where, orderBy, onSnapshot, serverTimestamp, getDocs, runTransaction, writeBatch }
@@ -826,7 +826,14 @@
       const userRef = doc(db, 'usuarios', user.uid);
       const snap = await getDoc(userRef);
       if (!snap.exists()) {
-        await setDoc(userRef, { email: user.email, nombre: user.displayName || user.email, fotoUrl: user.photoURL || '', rol: 'inspector', autorizado: false, creadoEn: serverTimestamp() });
+        // Toda cuenta nueva nace con el rol de menor acceso (subcontratista sin empresas: no ve nada) y sin
+        // autorizar; el admin elige el rol real al autorizarla. `tipoSolicitado`/`empresaSolicitada` son solo
+        // la pista que dio la persona al registrarse (si no pasó por la pestaña Registrarse, no hay pista).
+        const nuevo = { email: user.email, nombre: datosRegistro?.nombre || user.displayName || user.email, fotoUrl: user.photoURL || '', rol: 'subcontratista', autorizado: false, creadoEn: serverTimestamp() };
+        if (datosRegistro?.soy) nuevo.tipoSolicitado = datosRegistro.soy;
+        if (datosRegistro?.empresa) nuevo.empresaSolicitada = datosRegistro.empresa;
+        datosRegistro = null;
+        await setDoc(userRef, nuevo);
         mostrar('espera'); return;
       }
       currentUserData = snap.data();
@@ -887,16 +894,73 @@
       const m = document.getElementById('login-mensaje');
       m.textContent = texto; m.classList.toggle('ok', ok); m.classList.remove('oculto');
     }
+    // Registro propio (cualquier persona, con Google o con email). La cuenta queda SIN autorizar y con el
+    // rol de menor acceso (subcontratista sin empresas: no ve nada). Lo que la persona elige en "Soy…" es solo
+    // una pista para el admin: los permisos reales los da él al autorizar.
+    const TIPOS_REGISTRO = ['Personal de la oficina', 'Personal de obra', 'Subcontratista', 'Profesional externo'];
+    let modoRegistro = false;
+    let datosRegistro = null; // lo lee onAuthStateChanged al crear el documento del usuario
+    function cambiarModoRegistro(activo) {
+      modoRegistro = activo;
+      document.getElementById('login-tab-ingresar').classList.toggle('activa', !activo);
+      document.getElementById('login-tab-registro').classList.toggle('activa', activo);
+      document.getElementById('login-tab-ingresar').setAttribute('aria-selected', !activo);
+      document.getElementById('login-tab-registro').setAttribute('aria-selected', activo);
+      document.getElementById('login-registro-extra').classList.toggle('oculto', !activo);
+      document.getElementById('login-nombre').classList.toggle('oculto', !activo);
+      document.getElementById('login-nombre').required = activo;
+      document.getElementById('btn-reset-password').classList.toggle('oculto', activo);
+      document.getElementById('btn-login-texto').textContent = activo ? 'Registrarme con Google' : 'Continuar con Google';
+      document.getElementById('btn-login-email').textContent = activo ? 'Crear cuenta' : 'Ingresar';
+      document.getElementById('login-password').autocomplete = activo ? 'new-password' : 'current-password';
+      document.getElementById('login-password').placeholder = activo ? 'Contraseña (mínimo 6 caracteres)' : 'Contraseña';
+      document.getElementById('login-texto').textContent = activo
+        ? 'Completá lo que sos y elegí cómo registrarte. Un administrador va a revisar y autorizar tu cuenta antes de que puedas usar la app.'
+        : 'Ingresá con tu cuenta de Google o con tu email y contraseña. Si todavía no tenés cuenta, usá la pestaña Registrarse.';
+      document.getElementById('login-mensaje').classList.add('oculto');
+    }
+    document.getElementById('login-tab-ingresar').addEventListener('click', () => cambiarModoRegistro(false));
+    document.getElementById('login-tab-registro').addEventListener('click', () => cambiarModoRegistro(true));
+    document.getElementById('login-soy').addEventListener('change', e => {
+      const sub = e.target.value === 'Subcontratista';
+      document.getElementById('login-empresa').classList.toggle('oculto', !sub);
+      document.getElementById('login-empresa').required = sub && modoRegistro;
+    });
+    // Valida y lee "Soy…" (y la empresa si es subcontratista). Devuelve null si falta algo.
+    function leerDatosRegistro() {
+      const soy = document.getElementById('login-soy').value;
+      const empresa = document.getElementById('login-empresa').value.trim();
+      if (!TIPOS_REGISTRO.includes(soy)) { mostrarMensajeLogin('Elegí qué sos en la lista "Soy…".'); return null; }
+      if (soy === 'Subcontratista' && !empresa) { mostrarMensajeLogin('Escribí el nombre de tu empresa.'); return null; }
+      return { soy, empresa: soy === 'Subcontratista' ? empresa : '' };
+    }
+
     document.getElementById('form-login-email').addEventListener('submit', async e => {
       e.preventDefault();
       document.getElementById('login-mensaje').classList.add('oculto');
       const btn = document.getElementById('btn-login-email'); btn.disabled = true;
       try {
-        await signInWithEmailAndPassword(auth, document.getElementById('login-email').value.trim(), document.getElementById('login-password').value);
+        const email = document.getElementById('login-email').value.trim();
+        const password = document.getElementById('login-password').value;
+        if (modoRegistro) {
+          const extra = leerDatosRegistro();
+          const nombre = document.getElementById('login-nombre').value.trim();
+          if (!extra) return;
+          if (!nombre) { mostrarMensajeLogin('Escribí tu nombre y apellido.'); return; }
+          datosRegistro = { nombre, ...extra };
+          await createUserWithEmailAndPassword(auth, email, password);
+          try { await updateProfile(auth.currentUser, { displayName: datosRegistro.nombre }); } catch (_) {}
+        } else {
+          await signInWithEmailAndPassword(auth, email, password);
+        }
       } catch (ex) {
         console.error(ex);
+        datosRegistro = null;
         const credenciales = ['auth/invalid-credential','auth/wrong-password','auth/user-not-found','auth/invalid-email'];
-        mostrarMensajeLogin(credenciales.includes(ex.code) ? 'Email o contraseña incorrectos.'
+        mostrarMensajeLogin(ex.code === 'auth/email-already-in-use' ? 'Ya existe una cuenta con ese email. Ingresá, o usá "Olvidé mi contraseña".'
+          : ex.code === 'auth/weak-password' ? 'La contraseña debe tener al menos 6 caracteres.'
+          : ex.code === 'auth/invalid-email' ? 'El email no es válido.'
+          : credenciales.includes(ex.code) ? 'Email o contraseña incorrectos.'
           : ex.code === 'auth/too-many-requests' ? 'Demasiados intentos. Esperá unos minutos y probá de nuevo.'
           : ex.code === 'auth/operation-not-allowed' ? 'El ingreso con email no está habilitado.'
           : 'No se pudo iniciar sesión. Probá de nuevo.');
@@ -911,7 +975,9 @@
     });
 
     document.getElementById('btn-login').addEventListener('click', async () => {
-      try { await signInWithPopup(auth, provider); } catch (e) { console.error(e); alert('Error al iniciar sesión.'); }
+      document.getElementById('login-mensaje').classList.add('oculto');
+      if (modoRegistro) { const extra = leerDatosRegistro(); if (!extra) return; datosRegistro = extra; }
+      try { await signInWithPopup(auth, provider); } catch (e) { console.error(e); datosRegistro = null; if (e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request') alert('Error al iniciar sesión.'); }
     });
     document.querySelectorAll('.btn-logout').forEach(btn => btn.addEventListener('click', async () => {
       // Cerrar todas las suscripciones de pestañas
@@ -2538,7 +2604,7 @@
       const snap=await getDocs(collection(db,'usuarios'));lista.innerHTML='';
       snap.forEach(d=>{
         const u={id:d.id,...d.data()};const div=document.createElement('div');div.className='item-usuario';
-        div.innerHTML=`<div class="usuario-info"><div class="usuario-nombre">${escapeHtml(u.nombre||u.email)}</div><div class="usuario-email">${escapeHtml(u.email)}</div></div><div class="usuario-acciones"><select class="sel-rol" data-uid="${escapeHtml(u.id)}" style="width:120px;padding:5px 6px;font-size:11px;"><option value="lector" ${u.rol==='lector'?'selected':''}>Lector</option><option value="inspector" ${u.rol==='inspector'?'selected':''}>Inspector</option><option value="admin" ${u.rol==='admin'?'selected':''}>Admin</option><option value="subcontratista" ${u.rol==='subcontratista'?'selected':''}>Subcontratista</option></select><button class="btn-toggle-auth ${u.autorizado?'activo':''}" data-uid="${escapeHtml(u.id)}" data-auth="${escapeHtml(u.autorizado)}">${u.autorizado?'✓ Autorizado':'Autorizar'}</button></div>`;
+        div.innerHTML=`<div class="usuario-info"><div class="usuario-nombre">${escapeHtml(u.nombre||u.email)}</div><div class="usuario-email">${escapeHtml(u.email)}</div>${u.tipoSolicitado?`<div class="usuario-email">Se registró como: <b>${escapeHtml(u.tipoSolicitado)}</b>${u.empresaSolicitada?` · ${escapeHtml(u.empresaSolicitada)}`:''}</div>`:''}</div><div class="usuario-acciones"><select class="sel-rol" data-uid="${escapeHtml(u.id)}" style="width:120px;padding:5px 6px;font-size:11px;"><option value="lector" ${u.rol==='lector'?'selected':''}>Lector</option><option value="inspector" ${u.rol==='inspector'?'selected':''}>Inspector</option><option value="admin" ${u.rol==='admin'?'selected':''}>Admin</option><option value="subcontratista" ${u.rol==='subcontratista'?'selected':''}>Subcontratista</option></select><button class="btn-toggle-auth ${u.autorizado?'activo':''}" data-uid="${escapeHtml(u.id)}" data-auth="${escapeHtml(u.autorizado)}">${u.autorizado?'✓ Autorizado':'Autorizar'}</button></div>`;
         div.querySelector('.btn-toggle-auth').addEventListener('click',async e=>{const b=e.currentTarget;await updateDoc(doc(db,'usuarios',b.dataset.uid),{autorizado:b.dataset.auth!=='true'});cargarPanelUsuarios();});
         const rs=div.querySelector('.sel-rol');if(rs)rs.addEventListener('change',async e=>{await updateDoc(doc(db,'usuarios',e.currentTarget.dataset.uid),{rol:e.currentTarget.value});cargarPanelUsuarios();});
         if(u.rol==='subcontratista')div.appendChild(editorEmpresasUsuario(u));
@@ -4049,6 +4115,11 @@
     .login-card p{font-size:13px;color:var(--text2);text-align:center;line-height:1.5;}
     #btn-login{background:#fff;color:#333;padding:10px 20px;border-radius:8px;font-weight:600;font-size:14px;display:flex;align-items:center;gap:10px;width:100%;justify-content:center;}
     #btn-login:hover{background:#f0f0f0;}
+    .login-tabs{display:flex;width:100%;background:var(--bg3);border-radius:var(--radius-sm);padding:3px;gap:3px;}
+    .login-tab{flex:1;background:none;color:var(--text2);padding:8px 10px;border-radius:6px;font-size:13px;font-weight:600;}
+    .login-tab.activa{background:var(--bg2);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.3);}
+    .login-registro-extra{display:flex;flex-direction:column;gap:10px;width:100%;}
+    .login-registro-extra select,.login-email input{width:100%;}
     .login-sep{display:flex;align-items:center;gap:10px;width:100%;color:var(--text2);font-size:11px;text-transform:uppercase;letter-spacing:0.4px;}
     .login-sep::before,.login-sep::after{content:'';flex:1;height:1px;background:var(--border);}
     .login-email{display:flex;flex-direction:column;gap:10px;width:100%;}
@@ -4427,11 +4498,25 @@
       <div class="login-subtitle">Catamarán 12 — Goldstein Construcciones</div>
     </div>
     <div class="login-card">
-      <h2>Iniciar sesión</h2>
-      <p>Accedé con tu cuenta de Google o con el email que te dio el administrador. Si aún no estás registrado, el administrador deberá autorizarte.</p>
-      <button id="btn-login"><span class="google-icon"></span>Continuar con Google</button>
+      <div class="login-tabs" role="tablist">
+        <button type="button" id="login-tab-ingresar" class="login-tab activa" role="tab" aria-selected="true">Ingresar</button>
+        <button type="button" id="login-tab-registro" class="login-tab" role="tab" aria-selected="false">Registrarse</button>
+      </div>
+      <p id="login-texto">Ingresá con tu cuenta de Google o con tu email y contraseña. Si todavía no tenés cuenta, usá la pestaña Registrarse.</p>
+      <div id="login-registro-extra" class="login-registro-extra oculto">
+        <select id="login-soy">
+          <option value="">Soy…</option>
+          <option value="Personal de la oficina">Personal de la oficina</option>
+          <option value="Personal de obra">Personal de obra</option>
+          <option value="Subcontratista">Subcontratista</option>
+          <option value="Profesional externo">Profesional externo</option>
+        </select>
+        <input type="text" id="login-empresa" class="oculto" placeholder="Nombre de tu empresa" autocomplete="organization" maxlength="80">
+      </div>
+      <button id="btn-login"><span class="google-icon"></span><span id="btn-login-texto">Continuar con Google</span></button>
       <div class="login-sep"><span>o con email</span></div>
       <form id="form-login-email" class="login-email">
+        <input type="text" id="login-nombre" class="oculto" placeholder="Tu nombre y apellido" autocomplete="name" maxlength="80">
         <input type="email" id="login-email" placeholder="Email" autocomplete="username" required>
         <input type="password" id="login-password" placeholder="Contraseña" autocomplete="current-password" required>
         <button type="submit" id="btn-login-email" class="btn-primary">Ingresar</button>
